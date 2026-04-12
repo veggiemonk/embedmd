@@ -19,6 +19,68 @@ import (
 	"github.com/campoy/embedmd/internal/testutil"
 )
 
+func TestFields(t *testing.T) {
+	tc := []struct {
+		name string
+		in   string
+		out  []string
+		err  string
+	}{
+		{
+			name: "simple args",
+			in:   "code.go go /start/ /end/", out: []string{"code.go", "go", "/start/", "/end/"},
+		},
+		{
+			name: "exclude regexp",
+			in:   "code.go go !/start/ !/end/", out: []string{"code.go", "go", "!/start/", "!/end/"},
+		},
+		{
+			name: "exclude regexp with spaces",
+			in:   `code.go go !/start here/ !/end here/`, out: []string{"code.go", "go", "!/start here/", "!/end here/"},
+		},
+		{
+			name: "substitution",
+			in:   "code.go go /start/ /end/ s/ELLIPSIS/.../", out: []string{"code.go", "go", "/start/", "/end/", "s/ELLIPSIS/.../"},
+		},
+		{
+			name: "substitution with spaces in old",
+			in:   "code.go go s/_ = ELLIPSIS/.../", out: []string{"code.go", "go", "s/_ = ELLIPSIS/.../"},
+		},
+		{
+			name: "options after regexps",
+			in:   "code.go go !/start/ !/end/ dedent trim", out: []string{"code.go", "go", "!/start/", "!/end/", "dedent", "trim"},
+		},
+		{
+			name: "unbalanced exclude regexp",
+			in:   "code.go !/start", err: "unbalanced /",
+		},
+		{
+			name: "unbalanced substitution first sep",
+			in:   "code.go s/broken", err: "unbalanced / in substitution",
+		},
+		{
+			name: "unbalanced substitution second sep",
+			in:   "code.go s/old/broken", err: "unbalanced / in substitution",
+		},
+	}
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := fields(tt.in)
+			if !testutil.EqErr(t, tt.name, err, tt.err) {
+				return
+			}
+			if len(got) != len(tt.out) {
+				t.Fatalf("case [%s]: expected %d fields %v; got %d fields %v", tt.name, len(tt.out), tt.out, len(got), got)
+			}
+			for i := range got {
+				if got[i] != tt.out[i] {
+					t.Errorf("case [%s]: field %d: expected %q; got %q", tt.name, i, tt.out[i], got[i])
+				}
+			}
+		})
+	}
+}
+
 func TestParseCommand(t *testing.T) {
 	tc := []struct {
 		name string
@@ -26,53 +88,85 @@ func TestParseCommand(t *testing.T) {
 		cmd  command
 		err  string
 	}{
-		{name: "start to end",
-			in:  "(code.go /start/ /end/)",
-			cmd: command{path: "code.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("/end/")}},
-		{name: "only start",
-			in:  "(code.go     /start/)",
-			cmd: command{path: "code.go", lang: "go", start: testutil.Ptr("/start/")}},
-		{name: "empty list",
-			in:  "()",
-			err: "missing file name"},
-		{name: "file with no extension and no lang",
-			in:  "(test)",
-			err: "language is required when file has no extension"},
-		{name: "surrounding blanks",
-			in:  "   \t  (code.go)  \t  ",
-			cmd: command{path: "code.go", lang: "go"}},
-		{name: "no parenthesis",
-			in:  "{code.go}",
-			err: "argument list should be in parenthesis"},
-		{name: "only left parenthesis",
-			in:  "(code.go",
-			err: "argument list should be in parenthesis"},
-		{name: "regexp not closed",
-			in:  "(code.go /start)",
-			err: "unbalanced /"},
-		{name: "end regexp not closed",
-			in:  "(code.go /start/ /end)",
-			err: "unbalanced /"},
-		{name: "file name and language",
-			in:  "(test.md markdown)",
-			cmd: command{path: "test.md", lang: "markdown"}},
-		{name: "multi-line comments",
-			in:  `(doc.go /\/\*/ /\*\//)`,
-			cmd: command{path: "doc.go", lang: "go", start: testutil.Ptr(`/\/\*/`), end: testutil.Ptr(`/\*\//`)}},
-		{name: "using $ as end",
-			in:  "(foo.go /start/ $)",
-			cmd: command{path: "foo.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("$")}},
-		{name: "extra arguments",
-			in: "(foo.go /start/ $ extra)", err: "too many arguments"},
-		{name: "file name with directories",
-			in:  "(foo/bar.go)",
-			cmd: command{path: "foo/bar.go", lang: "go"}},
-		{name: "url",
-			in:  "(http://golang.org/sample.go)",
-			cmd: command{path: "http://golang.org/sample.go", lang: "go"}},
-		{name: "bad url",
-			in:  "(http://golang:org:sample.go)",
-			cmd: command{path: "http://golang:org:sample.go", lang: "go"}},
+		{
+			name: "start to end",
+			in:   "(code.go /start/ /end/)",
+			cmd:  command{path: "code.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("/end/")},
+		},
+		{
+			name: "only start",
+			in:   "(code.go     /start/)",
+			cmd:  command{path: "code.go", lang: "go", start: testutil.Ptr("/start/")},
+		},
+		{
+			name: "empty list",
+			in:   "()",
+			err:  "missing file name",
+		},
+		{
+			name: "file with no extension and no lang",
+			in:   "(test)",
+			err:  "language is required when file has no extension",
+		},
+		{
+			name: "surrounding blanks",
+			in:   "   \t  (code.go)  \t  ",
+			cmd:  command{path: "code.go", lang: "go"},
+		},
+		{
+			name: "no parenthesis",
+			in:   "{code.go}",
+			err:  "argument list should be in parenthesis",
+		},
+		{
+			name: "only left parenthesis",
+			in:   "(code.go",
+			err:  "argument list should be in parenthesis",
+		},
+		{
+			name: "regexp not closed",
+			in:   "(code.go /start)",
+			err:  "unbalanced /",
+		},
+		{
+			name: "end regexp not closed",
+			in:   "(code.go /start/ /end)",
+			err:  "unbalanced /",
+		},
+		{
+			name: "file name and language",
+			in:   "(test.md markdown)",
+			cmd:  command{path: "test.md", lang: "markdown"},
+		},
+		{
+			name: "multi-line comments",
+			in:   `(doc.go /\/\*/ /\*\//)`,
+			cmd:  command{path: "doc.go", lang: "go", start: testutil.Ptr(`/\/\*/`), end: testutil.Ptr(`/\*\//`)},
+		},
+		{
+			name: "using $ as end",
+			in:   "(foo.go /start/ $)",
+			cmd:  command{path: "foo.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("$")},
+		},
+		{
+			name: "extra arguments",
+			in:   "(foo.go /start/ $ extra)", err: "too many arguments",
+		},
+		{
+			name: "file name with directories",
+			in:   "(foo/bar.go)",
+			cmd:  command{path: "foo/bar.go", lang: "go"},
+		},
+		{
+			name: "url",
+			in:   "(http://golang.org/sample.go)",
+			cmd:  command{path: "http://golang.org/sample.go", lang: "go"},
+		},
+		{
+			name: "bad url",
+			in:   "(http://golang:org:sample.go)",
+			cmd:  command{path: "http://golang:org:sample.go", lang: "go"},
+		},
 	}
 
 	for _, tt := range tc {

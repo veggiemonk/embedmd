@@ -19,9 +19,18 @@ import (
 	"strings"
 )
 
+type substitution struct {
+	old, new string
+}
+
 type command struct {
-	path, lang string
-	start, end *string
+	path, lang    string
+	start, end    *string
+	excludeStart  bool
+	excludeEnd    bool
+	dedent        bool
+	trim          bool
+	substitutions []substitution
 }
 
 func parseCommand(s string) (*command, error) {
@@ -64,17 +73,38 @@ func parseCommand(s string) (*command, error) {
 
 // fields returns a list of the groups of text separated by blanks,
 // keeping all text surrounded by / as a group.
+// It also handles !/regexp/ (exclude) and s/old/new/ (substitution) tokens.
 func fields(s string) ([]string, error) {
 	var args []string
 
 	for s = strings.TrimSpace(s); len(s) > 0; s = strings.TrimSpace(s) {
-		if s[0] == '/' {
-			sep := nextSlash(s[1:])
+		regexpStart := s[0] == '/'
+		excludeRegexp := len(s) > 1 && s[0] == '!' && s[1] == '/'
+		substStart := len(s) > 1 && s[0] == 's' && s[1] == '/'
+
+		switch {
+		case regexpStart, excludeRegexp:
+			offset := 0
+			if excludeRegexp {
+				offset = 1
+			}
+			sep := nextSlash(s[offset+1:])
 			if sep < 0 {
 				return nil, errors.New("unbalanced /")
 			}
-			args, s = append(args, s[:sep+2]), s[sep+2:]
-		} else {
+			args, s = append(args, s[:offset+sep+2]), s[offset+sep+2:]
+		case substStart:
+			sep1 := nextSlash(s[2:])
+			if sep1 < 0 {
+				return nil, errors.New("unbalanced / in substitution")
+			}
+			sep2 := nextSlash(s[2+sep1+1:])
+			if sep2 < 0 {
+				return nil, errors.New("unbalanced / in substitution")
+			}
+			end := 2 + sep1 + 1 + sep2 + 1
+			args, s = append(args, s[:end]), s[end:]
+		default:
 			sep := strings.IndexByte(s[1:], ' ')
 			if sep < 0 {
 				return append(args, s), nil
