@@ -149,8 +149,83 @@ func TestParseCommand(t *testing.T) {
 			cmd:  command{path: "foo.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("$")},
 		},
 		{
+			name: "exclude start",
+			in:   "(code.go !/start/ /end/)",
+			cmd:  command{path: "code.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("/end/"), excludeStart: true},
+		},
+		{
+			name: "exclude end",
+			in:   "(code.go /start/ !/end/)",
+			cmd:  command{path: "code.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("/end/"), excludeEnd: true},
+		},
+		{
+			name: "exclude both",
+			in:   "(code.go !/start/ !/end/)",
+			cmd:  command{path: "code.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("/end/"), excludeStart: true, excludeEnd: true},
+		},
+		{
+			name: "exclude start with dollar end",
+			in:   "(code.go !/start/ $)",
+			cmd:  command{path: "code.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("$"), excludeStart: true},
+		},
+		{
+			name: "dedent option",
+			in:   "(code.go /start/ /end/ dedent)",
+			cmd:  command{path: "code.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("/end/"), dedent: true},
+		},
+		{
+			name: "trim option",
+			in:   "(code.go /start/ /end/ trim)",
+			cmd:  command{path: "code.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("/end/"), trim: true},
+		},
+		{
+			name: "substitution option",
+			in:   "(code.go /start/ /end/ s/ELLIPSIS/.../)",
+			cmd: command{
+				path: "code.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("/end/"),
+				substitutions: []substitution{{old: "ELLIPSIS", new: "..."}},
+			},
+		},
+		{
+			name: "multiple substitutions",
+			in:   "(code.go s/ELLIPSIS/.../ s/_ = ELLIPSIS/.../)",
+			cmd: command{
+				path: "code.go", lang: "go",
+				substitutions: []substitution{{old: "ELLIPSIS", new: "..."}, {old: "_ = ELLIPSIS", new: "..."}},
+			},
+		},
+		{
+			name: "all options combined",
+			in:   "(code.go !/start/ !/end/ dedent trim s/ELLIPSIS/.../)",
+			cmd: command{
+				path: "code.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("/end/"),
+				excludeStart: true, excludeEnd: true, dedent: true, trim: true,
+				substitutions: []substitution{{old: "ELLIPSIS", new: "..."}},
+			},
+		},
+		{
+			name: "exclude on single regexp is error",
+			in:   "(code.go !/only/)",
+			err:  "exclude (!) cannot be used with a single regexp",
+		},
+		{
+			name: "exclude on dollar is error",
+			in:   "(code.go /start/ !$)",
+			err:  "exclude (!) cannot be used with $",
+		},
+		{
+			name: "unknown option",
+			in:   "(code.go /start/ /end/ bogus)",
+			err:  `unknown option "bogus"`,
+		},
+		{
+			name: "invalid substitution",
+			in:   "(code.go /start/ /end/ s/broken)",
+			err:  "unbalanced / in substitution",
+		},
+		{
 			name: "extra arguments",
-			in:   "(foo.go /start/ $ extra)", err: "too many arguments",
+			in:   "(foo.go /start/ $ extra)", err: "unknown option \"extra\"",
 		},
 		{
 			name: "file name with directories",
@@ -188,6 +263,27 @@ func TestParseCommand(t *testing.T) {
 			}
 			if !testutil.EqPtr(want.end, got.end) {
 				t.Errorf("case [%s]: expected end %v; got %v", tt.name, testutil.Str(want.end), testutil.Str(got.end))
+			}
+			if want.excludeStart != got.excludeStart {
+				t.Errorf("case [%s]: expected excludeStart %v; got %v", tt.name, want.excludeStart, got.excludeStart)
+			}
+			if want.excludeEnd != got.excludeEnd {
+				t.Errorf("case [%s]: expected excludeEnd %v; got %v", tt.name, want.excludeEnd, got.excludeEnd)
+			}
+			if want.dedent != got.dedent {
+				t.Errorf("case [%s]: expected dedent %v; got %v", tt.name, want.dedent, got.dedent)
+			}
+			if want.trim != got.trim {
+				t.Errorf("case [%s]: expected trim %v; got %v", tt.name, want.trim, got.trim)
+			}
+			if len(want.substitutions) != len(got.substitutions) {
+				t.Errorf("case [%s]: expected %d substitutions; got %d", tt.name, len(want.substitutions), len(got.substitutions))
+			} else {
+				for i := range want.substitutions {
+					if want.substitutions[i] != got.substitutions[i] {
+						t.Errorf("case [%s]: substitution %d: expected %v; got %v", tt.name, i, want.substitutions[i], got.substitutions[i])
+					}
+				}
 			}
 		})
 	}
