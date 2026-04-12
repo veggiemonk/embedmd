@@ -68,6 +68,77 @@ files, since `.go` matches `go`). However, this will fail with other files like
 [embedmd]:# (file.ext)
 ```
 
+## Options
+
+Options can be added after the regular expressions in an `embedmd` command.
+
+### Excluding delimiter lines
+
+Prefix a regexp with `!` to use it as a boundary but exclude the matching line
+from the output. This is useful when you use comments in your code to mark
+snippet boundaries:
+
+```go
+// snippet-start
+fmt.Println("hello")
+// snippet-end
+```
+
+```Markdown
+[embedmd]:# (example.go go !/\/\/ snippet-start/ !/\/\/ snippet-end/)
+```
+
+This embeds only `fmt.Println("hello")`, excluding the marker comments.
+
+You can also exclude just the start or just the end:
+
+```Markdown
+[embedmd]:# (example.go go !/\/\/ start/ /end/)
+```
+
+### Stripping indentation
+
+Code inside functions is typically indented. The `dedent` option removes the
+common leading whitespace from all lines, so your Markdown code blocks are not
+unnecessarily indented:
+
+```Markdown
+[embedmd]:# (example.go go !/\/\/ snippet-start/ !/\/\/ snippet-end/ dedent)
+```
+
+### Trimming trailing blank lines
+
+Go's `gofmt` inserts a blank line between code and a following comment. The
+`trim` option removes trailing blank lines from the extracted content:
+
+```Markdown
+[embedmd]:# (example.go go !/\/\/ snippet-start/ !/\/\/ snippet-end/ trim)
+```
+
+### Text substitution
+
+The `s/old/new/` option replaces all occurrences of `old` with `new` in the
+extracted content. This lets you use placeholder tokens in compilable code:
+
+```Markdown
+[embedmd]:# (example.go go /func demo/ /}/ s/ELLIPSIS/.../)
+```
+
+Multiple substitutions can be chained:
+
+```Markdown
+[embedmd]:# (example.go go /func/ /}/ s/ELLIPSIS/.../ s/_ = ELLIPSIS/.../)
+```
+
+### Combining options
+
+Options can be combined. They are applied in this order: line exclusion, trailing
+blank line trimming, dedentation, then text substitution.
+
+```Markdown
+[embedmd]:# (example.go go !/\/\/ snippet-start/ !/\/\/ snippet-end/ dedent trim s/ELLIPSIS/.../)
+```
+
 ## Installation
 
 > You can install Go by following [these instructions](https://golang.org/doc/install).
