@@ -133,6 +133,16 @@ func (e *embedder) runCommand(w io.Writer, cmd *command) error {
 		return fmt.Errorf("could not extract content from %s: %v", cmd.path, err)
 	}
 
+	// Apply transforms in order: exclude → trim → dedent → substitute.
+	b = excludeLines(b, cmd.excludeStart, cmd.excludeEnd)
+	if cmd.trim {
+		b = trimTrailingBlankLines(b)
+	}
+	if cmd.dedent {
+		b = dedentBytes(b)
+	}
+	b = applySubstitutions(b, cmd.substitutions)
+
 	if len(b) > 0 && b[len(b)-1] != '\n' {
 		b = append(b, '\n')
 	}
