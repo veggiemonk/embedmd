@@ -50,7 +50,7 @@ func parseCommand(s string) (*command, error) {
 
 	cmd := &command{path: args[0]}
 	args = args[1:]
-	if len(args) > 0 && args[0][0] != '/' && args[0][0] != '!' && args[0] != "$" && !strings.HasPrefix(args[0], "s/") && args[0] != "dedent" && args[0] != "trim" {
+	if len(args) > 0 && !isRegexpOrOption(args[0]) {
 		cmd.lang, args = args[0], args[1:]
 	} else {
 		ext := filepath.Ext(cmd.path[1:])
@@ -130,6 +130,13 @@ func parseSubstitution(s string) (substitution, error) {
 		return substitution{}, fmt.Errorf("invalid substitution %q", s)
 	}
 	return substitution{old: inner[:idx], new: inner[idx+1:]}, nil
+}
+
+// isRegexpOrOption reports whether arg looks like a regexp (/.../, !/.../, $)
+// or an option (dedent, trim, s/.../) rather than a language identifier.
+func isRegexpOrOption(arg string) bool {
+	return arg[0] == '/' || arg[0] == '!' || arg == "$" ||
+		strings.HasPrefix(arg, "s/") || arg == "dedent" || arg == "trim"
 }
 
 // fields returns a list of the groups of text separated by blanks,
