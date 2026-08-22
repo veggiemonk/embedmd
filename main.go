@@ -119,9 +119,9 @@ const (
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	os.Exit(run(ctx, os.Args[1:], os.Stdout, os.Stderr))
+	status := run(ctx, os.Args[1:], os.Stdout, os.Stderr)
+	stop() // os.Exit runs no deferred call, so stop here.
+	os.Exit(status)
 }
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
