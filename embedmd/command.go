@@ -31,7 +31,7 @@ type substitution struct {
 
 type command struct {
 	path, lang    string
-	start, end    *string
+	start, end    string
 	excludeStart  bool
 	excludeEnd    bool
 	dedent        bool
@@ -80,7 +80,7 @@ func parseCommand(s string) (*command, error) {
 		// $ means "to the end of the file", so it only makes sense as the
 		// second range argument. Without this check the start slot stays
 		// empty while the end slot is filled, and extract dereferences nil.
-		if isDollar && cmd.start == nil {
+		if isDollar && cmd.start == "" {
 			return nil, errors.New("$ must follow a start regexp")
 		}
 
@@ -88,20 +88,20 @@ func parseCommand(s string) (*command, error) {
 			break
 		}
 
-		if cmd.start == nil && !isDollar {
+		if cmd.start == "" && !isDollar {
 			re := arg
 			if isExclude {
 				re = arg[1:]
 				cmd.excludeStart = true
 			}
-			cmd.start = &re
-		} else if cmd.end == nil {
+			cmd.start = re
+		} else if cmd.end == "" {
 			re := arg
 			if isExclude {
 				re = arg[1:]
 				cmd.excludeEnd = true
 			}
-			cmd.end = &re
+			cmd.end = re
 		} else {
 			return nil, errors.New("too many arguments")
 		}
@@ -109,7 +109,7 @@ func parseCommand(s string) (*command, error) {
 	}
 
 	// Single regexp with exclude is useless (would produce empty output).
-	if cmd.start != nil && cmd.end == nil && cmd.excludeStart {
+	if cmd.start != "" && cmd.end == "" && cmd.excludeStart {
 		return nil, errors.New("exclude (!) cannot be used with a single regexp")
 	}
 

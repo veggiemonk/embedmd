@@ -44,7 +44,7 @@ func main() {
 func TestExtract(t *testing.T) {
 	tc := []struct {
 		name       string
-		start, end *string
+		start, end string
 		out        string
 		err        string
 	}{
@@ -54,53 +54,53 @@ func TestExtract(t *testing.T) {
 		},
 		{
 			name:  "only one line",
-			start: testutil.Ptr("/func main.*\n/"), out: "func main() {\n",
+			start: "/func main.*\n/", out: "func main() {\n",
 		},
 		{
 			name:  "from package to end",
-			start: testutil.Ptr("/package main/"), end: testutil.Ptr("$"), out: string(content[1:]),
+			start: "/package main/", end: "$", out: string(content[1:]),
 		},
 		{
 			name:  "not matching",
-			start: testutil.Ptr("/gopher/"), err: "could not match \"/gopher/\"",
+			start: "/gopher/", err: "could not match \"/gopher/\"",
 		},
 		{
 			name:  "part of a line",
-			start: testutil.Ptr("/fmt.P/"), end: testutil.Ptr("/hello/"), out: "fmt.Println(\"hello",
+			start: "/fmt.P/", end: "/hello/", out: "fmt.Println(\"hello",
 		},
 		{
 			name:  "function call",
-			start: testutil.Ptr("/fmt\\.[^()]*/"), out: "fmt.Println",
+			start: "/fmt\\.[^()]*/", out: "fmt.Println",
 		},
 		{
 			name:  "from fmt to end of line",
-			start: testutil.Ptr("/fmt.P.*\n/"), out: "fmt.Println(\"hello, test\")\n",
+			start: "/fmt.P.*\n/", out: "fmt.Println(\"hello, test\")\n",
 		},
 		{
 			name:  "from func to end of next line",
-			start: testutil.Ptr("/func/"), end: testutil.Ptr("/Println.*\n/"), out: "func main() {\n        fmt.Println(\"hello, test\")\n",
+			start: "/func/", end: "/Println.*\n/", out: "func main() {\n        fmt.Println(\"hello, test\")\n",
 		},
 		{
 			name:  "from func to }",
-			start: testutil.Ptr("/func main/"), end: testutil.Ptr("/}/"), out: "func main() {\n        fmt.Println(\"hello, test\")\n}",
+			start: "/func main/", end: "/}/", out: "func main() {\n        fmt.Println(\"hello, test\")\n}",
 		},
 
 		{
 			name:  "bad start regexp",
-			start: testutil.Ptr("/(/"), err: "error parsing regexp: missing closing ): `(`",
+			start: "/(/", err: "error parsing regexp: missing closing ): `(`",
 		},
 		{
 			name:  "bad regexp",
-			start: testutil.Ptr("something"), err: "missing slashes (/) around \"something\"",
+			start: "something", err: "missing slashes (/) around \"something\"",
 		},
 		{
 			name:  "bad end regexp",
-			start: testutil.Ptr("/fmt.P/"), end: testutil.Ptr("/)/"), err: "error parsing regexp: unexpected ): `)`",
+			start: "/fmt.P/", end: "/)/", err: "error parsing regexp: unexpected ): `)`",
 		},
 
 		{
 			name:  "start and end of line ^$",
-			start: testutil.Ptr("/^func main/"), end: testutil.Ptr("/}$/"), out: "func main() {\n        fmt.Println(\"hello, test\")\n}",
+			start: "/^func main/", end: "/}$/", out: "func main() {\n        fmt.Println(\"hello, test\")\n}",
 		},
 	}
 
@@ -141,7 +141,7 @@ func TestExtractFromFile(t *testing.T) {
 		},
 		{
 			name:  "added line break",
-			cmd:   command{path: "code.go", lang: "go", start: testutil.Ptr("/fmt\\.Println/")},
+			cmd:   command{path: "code.go", lang: "go", start: "/fmt\\.Println/"},
 			files: map[string][]byte{"code.go": []byte(content)},
 			out:   "```go\nfmt.Println\n```\n",
 		},
@@ -152,7 +152,7 @@ func TestExtractFromFile(t *testing.T) {
 		},
 		{
 			name:  "unmatched regexp",
-			cmd:   command{path: "code.go", lang: "go", start: testutil.Ptr("/potato/")},
+			cmd:   command{path: "code.go", lang: "go", start: "/potato/"},
 			files: map[string][]byte{"code.go": []byte(content)},
 			err:   "could not extract content from code.go: could not match \"/potato/\"",
 		},
@@ -160,7 +160,7 @@ func TestExtractFromFile(t *testing.T) {
 			name: "exclude start and end lines",
 			cmd: command{
 				path: "code.go", lang: "go",
-				start: testutil.Ptr("/\\/\\/ start/"), end: testutil.Ptr("/\\/\\/ end/"),
+				start: "/\\/\\/ start/", end: "/\\/\\/ end/",
 				excludeStart: true, excludeEnd: true,
 			},
 			files: map[string][]byte{"code.go": []byte("// start\nfmt.Println(\"hello\")\n// end\n")},
@@ -170,7 +170,7 @@ func TestExtractFromFile(t *testing.T) {
 			name: "dedent strips common indent",
 			cmd: command{
 				path: "code.go", lang: "go",
-				start: testutil.Ptr("/\\/\\/ start/"), end: testutil.Ptr("/\\/\\/ end/"),
+				start: "/\\/\\/ start/", end: "/\\/\\/ end/",
 				excludeStart: true, excludeEnd: true, dedent: true,
 			},
 			files: map[string][]byte{"code.go": []byte("// start\n\tfmt.Println(\"hello\")\n\tx := 1\n// end\n")},
@@ -180,7 +180,7 @@ func TestExtractFromFile(t *testing.T) {
 			name: "trim removes trailing blank lines",
 			cmd: command{
 				path: "code.go", lang: "go",
-				start: testutil.Ptr("/\\/\\/ start/"), end: testutil.Ptr("/\\/\\/ end/"),
+				start: "/\\/\\/ start/", end: "/\\/\\/ end/",
 				excludeStart: true, excludeEnd: true, trim: true,
 			},
 			files: map[string][]byte{"code.go": []byte("// start\nline1\n\n\n// end\n")},
@@ -199,7 +199,7 @@ func TestExtractFromFile(t *testing.T) {
 			name: "all transforms combined",
 			cmd: command{
 				path: "code.go", lang: "go",
-				start: testutil.Ptr("/\\/\\/ snippet-start/"), end: testutil.Ptr("/\\/\\/ snippet-end/"),
+				start: "/\\/\\/ snippet-start/", end: "/\\/\\/ snippet-end/",
 				excludeStart: true, excludeEnd: true, dedent: true, trim: true,
 				substitutions: []substitution{{old: "ELLIPSIS", new: "..."}},
 			},

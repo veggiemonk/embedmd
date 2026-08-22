@@ -96,12 +96,12 @@ func TestParseCommand(t *testing.T) {
 		{
 			name: "start to end",
 			in:   "(code.go /start/ /end/)",
-			cmd:  command{path: "code.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("/end/")},
+			cmd:  command{path: "code.go", lang: "go", start: "/start/", end: "/end/"},
 		},
 		{
 			name: "only start",
 			in:   "(code.go     /start/)",
-			cmd:  command{path: "code.go", lang: "go", start: testutil.Ptr("/start/")},
+			cmd:  command{path: "code.go", lang: "go", start: "/start/"},
 		},
 		{
 			name: "empty list",
@@ -146,48 +146,48 @@ func TestParseCommand(t *testing.T) {
 		{
 			name: "multi-line comments",
 			in:   `(doc.go /\/\*/ /\*\//)`,
-			cmd:  command{path: "doc.go", lang: "go", start: testutil.Ptr(`/\/\*/`), end: testutil.Ptr(`/\*\//`)},
+			cmd:  command{path: "doc.go", lang: "go", start: `/\/\*/`, end: `/\*\//`},
 		},
 		{
 			name: "using $ as end",
 			in:   "(foo.go /start/ $)",
-			cmd:  command{path: "foo.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("$")},
+			cmd:  command{path: "foo.go", lang: "go", start: "/start/", end: "$"},
 		},
 		{
 			name: "exclude start",
 			in:   "(code.go !/start/ /end/)",
-			cmd:  command{path: "code.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("/end/"), excludeStart: true},
+			cmd:  command{path: "code.go", lang: "go", start: "/start/", end: "/end/", excludeStart: true},
 		},
 		{
 			name: "exclude end",
 			in:   "(code.go /start/ !/end/)",
-			cmd:  command{path: "code.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("/end/"), excludeEnd: true},
+			cmd:  command{path: "code.go", lang: "go", start: "/start/", end: "/end/", excludeEnd: true},
 		},
 		{
 			name: "exclude both",
 			in:   "(code.go !/start/ !/end/)",
-			cmd:  command{path: "code.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("/end/"), excludeStart: true, excludeEnd: true},
+			cmd:  command{path: "code.go", lang: "go", start: "/start/", end: "/end/", excludeStart: true, excludeEnd: true},
 		},
 		{
 			name: "exclude start with dollar end",
 			in:   "(code.go !/start/ $)",
-			cmd:  command{path: "code.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("$"), excludeStart: true},
+			cmd:  command{path: "code.go", lang: "go", start: "/start/", end: "$", excludeStart: true},
 		},
 		{
 			name: "dedent option",
 			in:   "(code.go /start/ /end/ dedent)",
-			cmd:  command{path: "code.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("/end/"), dedent: true},
+			cmd:  command{path: "code.go", lang: "go", start: "/start/", end: "/end/", dedent: true},
 		},
 		{
 			name: "trim option",
 			in:   "(code.go /start/ /end/ trim)",
-			cmd:  command{path: "code.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("/end/"), trim: true},
+			cmd:  command{path: "code.go", lang: "go", start: "/start/", end: "/end/", trim: true},
 		},
 		{
 			name: "substitution option",
 			in:   "(code.go /start/ /end/ s/ELLIPSIS/.../)",
 			cmd: command{
-				path: "code.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("/end/"),
+				path: "code.go", lang: "go", start: "/start/", end: "/end/",
 				substitutions: []substitution{{old: "ELLIPSIS", new: "..."}},
 			},
 		},
@@ -203,7 +203,7 @@ func TestParseCommand(t *testing.T) {
 			name: "all options combined",
 			in:   "(code.go !/start/ !/end/ dedent trim s/ELLIPSIS/.../)",
 			cmd: command{
-				path: "code.go", lang: "go", start: testutil.Ptr("/start/"), end: testutil.Ptr("/end/"),
+				path: "code.go", lang: "go", start: "/start/", end: "/end/",
 				excludeStart: true, excludeEnd: true, dedent: true, trim: true,
 				substitutions: []substitution{{old: "ELLIPSIS", new: "..."}},
 			},
@@ -273,11 +273,11 @@ func TestParseCommand(t *testing.T) {
 			if want.lang != got.lang {
 				t.Errorf("case [%s]: expected language %q; got %q", tt.name, want.lang, got.lang)
 			}
-			if !testutil.EqPtr(want.start, got.start) {
-				t.Errorf("case [%s]: expected start %v; got %v", tt.name, testutil.Str(want.start), testutil.Str(got.start))
+			if want.start != got.start {
+				t.Errorf("case [%s]: expected start %q; got %q", tt.name, want.start, got.start)
 			}
-			if !testutil.EqPtr(want.end, got.end) {
-				t.Errorf("case [%s]: expected end %v; got %v", tt.name, testutil.Str(want.end), testutil.Str(got.end))
+			if want.end != got.end {
+				t.Errorf("case [%s]: expected end %q; got %q", tt.name, want.end, got.end)
 			}
 			if want.excludeStart != got.excludeStart {
 				t.Errorf("case [%s]: expected excludeStart %v; got %v", tt.name, want.excludeStart, got.excludeStart)

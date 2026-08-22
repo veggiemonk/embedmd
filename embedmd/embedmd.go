@@ -168,8 +168,12 @@ func (e *embedder) runCommand(ctx context.Context, w io.Writer, cmd *command) er
 	return nil
 }
 
-func extract(b []byte, start, end *string) ([]byte, error) {
-	if start == nil && end == nil {
+// extract returns the part of b delimited by the start and end regexps.
+// An empty start or end means the boundary is absent: parseCommand never
+// produces an empty one. The end may also be "$", which means "to the end of
+// the content".
+func extract(b []byte, start, end string) ([]byte, error) {
+	if start == "" && end == "" {
 		return b, nil
 	}
 
@@ -188,19 +192,19 @@ func extract(b []byte, start, end *string) ([]byte, error) {
 		return loc, nil
 	}
 
-	if *start != "" {
-		loc, err := match(*start)
+	if start != "" {
+		loc, err := match(start)
 		if err != nil {
 			return nil, err
 		}
-		if end == nil {
+		if end == "" {
 			return b[loc[0]:loc[1]], nil
 		}
 		b = b[loc[0]:]
 	}
 
-	if *end != "$" {
-		loc, err := match(*end)
+	if end != "$" {
+		loc, err := match(end)
 		if err != nil {
 			return nil, err
 		}
