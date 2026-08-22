@@ -226,6 +226,19 @@ and add the corresponding code snippets, as shown in
 between the contents of `docs.md` and the output of
 `embedmd docs.md`.
 
+* `-v`: Displays the version.
+
+# Exit status
+
+The exit status follows `diff(1)`, so a script can tell a difference from a
+failure:
+
+| Status | Meaning |
+|---|---|
+| 0 | Nothing to report. |
+| 1 | `-d` found a difference. |
+| 2 | The run failed. |
+
 ## Use as a library
 
 The `embedmd` package exposes `Process`. It takes a context, so you can cancel

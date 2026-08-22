@@ -36,6 +36,9 @@
 //
 //	output.
 //
+// The exit status follows diff(1): 0 when there is nothing to report, 1 when
+// -d found a difference, and 2 when the run failed.
+//
 // For more information on the format of the commands, read the documentation
 // of the github.com/veggiemonk/embedmd/embedmd package.
 package main
@@ -43,6 +46,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -58,58 +62,85 @@ import (
 // modified while building by -ldflags.
 var version = "unknown"
 
-func usage() {
-	fmt.Fprintf(os.Stderr, "usage: embedmd [flags] [path ...]\n")
-	flag.PrintDefaults()
-}
+// Exit status. The values follow diff(1), so a script can tell a difference
+// from a failure.
+const (
+	exitOK        = 0
+	exitDiffFound = 1
+	exitError     = 2
+)
 
 func main() {
-	rewrite := flag.Bool("w", false, "write result to (markdown) file instead of stdout")
-	doDiff := flag.Bool("d", false, "display diffs instead of rewriting files")
-	printVersion := flag.Bool("v", false, "display embedmd version")
-	flag.Usage = usage
-	flag.Parse()
-
-	if *printVersion {
-		fmt.Println("embedmd version: " + version)
-		return
-	}
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	diff, err := embed(ctx, flag.Args(), *rewrite, *doDiff)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(2)
-	}
-	if diff && *doDiff {
-		os.Exit(2)
-	}
+	os.Exit(run(ctx, os.Args[1:], os.Stdout, os.Stderr))
 }
 
-var stdout io.Writer = os.Stdout
+func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("embedmd", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	rewrite := flags.Bool("w", false, "write result to (markdown) file instead of stdout")
+	doDiff := flags.Bool("d", false, "display diffs instead of rewriting files")
+	printVersion := flags.Bool("v", false, "display embedmd version")
+	flags.Usage = func() {
+		// Nothing useful is left to do when a message cannot be printed.
+		_, _ = fmt.Fprintln(stderr, "usage: embedmd [flags] [path ...]")
+		flags.PrintDefaults()
+	}
+	if err := flags.Parse(args); err != nil {
+		return exitError
+	}
 
-func embed(ctx context.Context, paths []string, rewrite, doDiff bool) (foundDiff bool, err error) {
+	if *printVersion {
+		_, _ = fmt.Fprintln(stdout, "embedmd version: "+version)
+		return exitOK
+	}
+
+	a := app{stdout: stdout, stderr: stderr}
+	foundDiff, err := a.embed(ctx, flags.Args(), *rewrite, *doDiff)
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		return exitError
+	}
+	if foundDiff {
+		return exitDiffFound
+	}
+	return exitOK
+}
+
+// app holds where a run writes. Tests supply their own writers, so the
+// package keeps no writer of its own that a test would have to swap and put
+// back.
+type app struct {
+	stdout io.Writer
+	stderr io.Writer
+}
+
+func (a app) embed(ctx context.Context, paths []string, rewrite, doDiff bool) (foundDiff bool, err error) {
 	if rewrite && doDiff {
-		return false, fmt.Errorf("error: cannot use -w and -d simultaneously")
+		return false, errors.New("error: cannot use -w and -d simultaneously")
 	}
 
 	if len(paths) == 0 {
-		return false, fmt.Errorf("error: no markdown files provided")
+		return false, errors.New("error: no markdown files provided")
 	}
 
+	// One bad file does not hide the others: every path is tried, and every
+	// failure is reported.
+	var errs []error
 	for _, path := range paths {
-		d, err := processFile(ctx, path, rewrite, doDiff)
+		d, err := a.processFile(ctx, path, rewrite, doDiff)
 		if err != nil {
-			return false, fmt.Errorf("%s:%v", path, err)
+			errs = append(errs, fmt.Errorf("%s:%w", path, err))
+			continue
 		}
 		foundDiff = foundDiff || d
 	}
-	return foundDiff, nil
+	return foundDiff, errors.Join(errs...)
 }
 
-func processFile(ctx context.Context, path string, rewrite, doDiff bool) (foundDiff bool, err error) {
+func (a app) processFile(ctx context.Context, path string, rewrite, doDiff bool) (foundDiff bool, err error) {
 	if filepath.Ext(path) != ".md" {
 		return false, fmt.Errorf("not a markdown file")
 	}
@@ -130,7 +161,9 @@ func processFile(ctx context.Context, path string, rewrite, doDiff bool) (foundD
 		if err != nil || len(data) == 0 {
 			return false, err
 		}
-		fmt.Fprintf(stdout, "%s", data)
+		if _, err := io.WriteString(a.stdout, data); err != nil {
+			return true, err
+		}
 		return true, nil
 	}
 
@@ -141,7 +174,7 @@ func processFile(ctx context.Context, path string, rewrite, doDiff bool) (foundD
 		return false, replaceFile(path, buf.Bytes())
 	}
 
-	_, err = io.Copy(stdout, buf)
+	_, err = io.Copy(a.stdout, buf)
 	return false, err
 }
 

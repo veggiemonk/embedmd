@@ -10,11 +10,6 @@ linters:
     - staticcheck
     - unused
   settings:
-    errcheck:
-      exclude-functions:
-        - fmt.Fprint
-        - fmt.Fprintf
-        - fmt.Fprintln
     revive:
       rules:
         # Many parameters exist only to satisfy an interface or a state

@@ -21,6 +21,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -47,7 +48,8 @@ func TestEmbedNoPaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := embed(context.Background(), nil, tt.w, tt.d)
+			a := app{stdout: io.Discard, stderr: io.Discard}
+			_, err := a.embed(context.Background(), nil, tt.w, tt.d)
 			if err == nil || err.Error() != tt.err {
 				t.Fatalf("expected error %q; got %v", tt.err, err)
 			}
@@ -101,7 +103,8 @@ func TestEmbedRewrite(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path := newDoc(t, tt.in)
-			if _, err := embed(context.Background(), []string{path}, true, false); err != nil {
+			a := app{stdout: io.Discard, stderr: io.Discard}
+			if _, err := a.embed(context.Background(), []string{path}, true, false); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			got, err := os.ReadFile(path)
@@ -120,7 +123,8 @@ func TestEmbedRewriteKeepsFileMode(t *testing.T) {
 		t.Skip("file modes work differently on Windows")
 	}
 	path := newDoc(t, "[embedmd]:# (hello.go)\n")
-	if _, err := embed(context.Background(), []string{path}, true, false); err != nil {
+	a := app{stdout: io.Discard, stderr: io.Discard}
+	if _, err := a.embed(context.Background(), []string{path}, true, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	info, err := os.Stat(path)
@@ -134,7 +138,8 @@ func TestEmbedRewriteKeepsFileMode(t *testing.T) {
 
 func TestEmbedRewriteLeavesNoTemporaryFile(t *testing.T) {
 	path := newDoc(t, "[embedmd]:# (hello.go)\n")
-	if _, err := embed(context.Background(), []string{path}, true, false); err != nil {
+	a := app{stdout: io.Discard, stderr: io.Discard}
+	if _, err := a.embed(context.Background(), []string{path}, true, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	entries, err := os.ReadDir(filepath.Dir(path))
@@ -173,11 +178,9 @@ func TestEmbedDiff(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			path := newDoc(t, tt.in)
 			var out bytes.Buffer
-			old := stdout
-			stdout = &out
-			t.Cleanup(func() { stdout = old })
+			a := app{stdout: &out, stderr: io.Discard}
 
-			foundDiff, err := embed(context.Background(), []string{path}, false, true)
+			foundDiff, err := a.embed(context.Background(), []string{path}, false, true)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -193,10 +196,8 @@ func TestEmbedDiff(t *testing.T) {
 	// The file must not change under -d.
 	path := newDoc(t, "[embedmd]:# (hello.go)\n")
 	var out bytes.Buffer
-	old := stdout
-	stdout = &out
-	t.Cleanup(func() { stdout = old })
-	if _, err := embed(context.Background(), []string{path}, false, true); err != nil {
+	a := app{stdout: &out, stderr: io.Discard}
+	if _, err := a.embed(context.Background(), []string{path}, false, true); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	got, err := os.ReadFile(path)
@@ -214,8 +215,61 @@ func TestEmbedNotMarkdown(t *testing.T) {
 	if err := os.WriteFile(path, []byte("hi\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	_, err := embed(context.Background(), []string{path}, false, false)
+	a := app{stdout: io.Discard, stderr: io.Discard}
+	_, err := a.embed(context.Background(), []string{path}, false, false)
 	if err == nil || !strings.Contains(err.Error(), "not a markdown file") {
 		t.Fatalf("expected a markdown error; got %v", err)
+	}
+}
+
+func TestEmbedReportsEveryFailure(t *testing.T) {
+	dir := t.TempDir()
+	var paths []string
+	for _, name := range []string{"one.md", "two.md"} {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte("[embedmd]:# (missing.go)\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		paths = append(paths, path)
+	}
+
+	a := app{stdout: io.Discard, stderr: io.Discard}
+	_, err := a.embed(context.Background(), paths, false, false)
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	for _, path := range paths {
+		if !strings.Contains(err.Error(), path) {
+			t.Errorf("expected %s in the report; got %v", path, err)
+		}
+	}
+}
+
+func TestRunExitStatus(t *testing.T) {
+	upToDate := newDoc(t, "[embedmd]:# (hello.go)\n```go\nhi\n```\n")
+	stale := newDoc(t, "[embedmd]:# (hello.go)\n")
+	missing := newDoc(t, "[embedmd]:# (nowhere.go)\n")
+
+	tests := []struct {
+		name string
+		args []string
+		want int
+	}{
+		{name: "nothing to report", args: []string{"-d", upToDate}, want: exitOK},
+		{name: "a difference", args: []string{"-d", stale}, want: exitDiffFound},
+		{name: "a failure", args: []string{"-d", missing}, want: exitError},
+		{name: "the version", args: []string{"-v"}, want: exitOK},
+		{name: "-w and -d together", args: []string{"-w", "-d", upToDate}, want: exitError},
+		{name: "no file", args: nil, want: exitError},
+		{name: "an unknown flag", args: []string{"-nope"}, want: exitError},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := run(context.Background(), tt.args, io.Discard, io.Discard)
+			if got != tt.want {
+				t.Errorf("expected exit status %d; got %d", tt.want, got)
+			}
+		})
 	}
 }
