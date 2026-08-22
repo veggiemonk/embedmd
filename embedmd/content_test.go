@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -46,7 +45,7 @@ func TestFetchHTTPTimeout(t *testing.T) {
 	defer srv.Close()
 
 	f := fetcher{client: &http.Client{Timeout: 100 * time.Millisecond}}
-	_, err := f.Fetch(context.Background(), "", srv.URL)
+	_, err := f.Fetch(t.Context(), "", srv.URL)
 	if err == nil {
 		t.Fatal("expected timeout error, got nil")
 	}
@@ -68,7 +67,7 @@ func TestFetchHTTPSizeLimit(t *testing.T) {
 	defer srv.Close()
 
 	f := fetcher{}
-	b, err := f.Fetch(context.Background(), "", srv.URL)
+	b, err := f.Fetch(t.Context(), "", srv.URL)
 	if err == nil {
 		t.Fatalf("expected an error; got %d bytes", len(b))
 	}
@@ -87,39 +86,35 @@ func TestFetchHTTPNotFound(t *testing.T) {
 	defer srv.Close()
 
 	f := fetcher{}
-	_, err := f.Fetch(context.Background(), "", srv.URL)
+	_, err := f.Fetch(t.Context(), "", srv.URL)
 	if err == nil {
-		t.Fatal("expected error for 404, got nil")
+		t.Fatal("expected an error for 404; got nil")
 	}
-	want := fmt.Sprintf("status %s", http.StatusText(http.StatusNotFound)+" 404 page not found\n")
-	_ = want // error message format varies; just confirm non-nil
+	if !strings.Contains(err.Error(), "404") {
+		t.Fatalf("expected the status in the error; got %v", err)
+	}
 }
 
 func TestFetchContextCancelled(t *testing.T) {
-	// Server that blocks until the client goes away.
+	ctx, cancel := context.WithCancel(t.Context())
+
+	// The server cancels the context of its own client, then waits for the
+	// client to go away. No sleep is needed, so the test is not timed.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cancel()
 		<-r.Context().Done()
 	}))
 	defer srv.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		cancel()
-	}()
-
 	f := fetcher{}
 	_, err := f.Fetch(ctx, "", srv.URL)
-	if err == nil {
-		t.Fatal("expected error after cancel, got nil")
-	}
 	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("expected context.Canceled, got %v", err)
+		t.Fatalf("expected context.Canceled; got %v", err)
 	}
 }
 
 func TestProcessContextAlreadyCancelled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	in := strings.NewReader("[embedmd]:# (code.go)\n")

@@ -16,16 +16,16 @@
 
 package embedmd
 
-import "bytes"
+import (
+	"bytes"
+	"slices"
+)
 
-// splitLines splits b into lines, each retaining its trailing \n.
-// Unlike bytes.SplitAfter, it never returns an empty trailing element.
+// splitLines splits b into lines, each keeping its trailing \n. An empty b
+// gives no lines, and a b that does not end in \n gives a last line without
+// one.
 func splitLines(b []byte) [][]byte {
-	lines := bytes.SplitAfter(b, []byte("\n"))
-	if len(lines) > 0 && len(lines[len(lines)-1]) == 0 {
-		lines = lines[:len(lines)-1]
-	}
-	return lines
+	return slices.Collect(bytes.Lines(b))
 }
 
 func excludeLines(b []byte, exclStart, exclEnd bool) []byte {
@@ -126,11 +126,8 @@ func leadingWhitespace(b []byte) []byte {
 }
 
 func commonPrefix(a, b []byte) []byte {
-	n := len(a)
-	if len(b) < n {
-		n = len(b)
-	}
-	for i := 0; i < n; i++ {
+	n := min(len(a), len(b))
+	for i := range n {
 		if a[i] != b[i] {
 			return a[:i]
 		}

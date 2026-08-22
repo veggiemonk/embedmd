@@ -84,8 +84,7 @@ func readLocalFile(dir, path string) ([]byte, error) {
 	f, err := os.OpenInRoot(dir, name)
 	if err != nil {
 		// Drop the *fs.PathError: the caller already names the path.
-		var perr *fs.PathError
-		if errors.As(err, &perr) {
+		if perr, ok := errors.AsType[*fs.PathError](err); ok {
 			return nil, perr.Err
 		}
 		return nil, err

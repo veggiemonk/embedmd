@@ -220,7 +220,7 @@ func TestExtractFromFile(t *testing.T) {
 			}
 
 			w := new(bytes.Buffer)
-			err := e.runCommand(context.Background(), w, &tt.cmd, "\n")
+			err := e.runCommand(t.Context(), w, &tt.cmd, "\n")
 			if tt.err != "" {
 				if err == nil || err.Error() != tt.err {
 					t.Fatalf("expected error %q; got %v", tt.err, err)
@@ -381,7 +381,7 @@ func TestProcess(t *testing.T) {
 			if tt.dir != "" {
 				opts = append(opts, WithBaseDir(tt.dir))
 			}
-			err := Process(context.Background(), &out, strings.NewReader(tt.in), opts...)
+			err := Process(t.Context(), &out, strings.NewReader(tt.in), opts...)
 			if tt.err != "" {
 				if err == nil || err.Error() != tt.err {
 					t.Fatalf("expected error %q; got %v", tt.err, err)

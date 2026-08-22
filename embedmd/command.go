@@ -137,11 +137,11 @@ func parseCommand(s string) (*command, error) {
 func parseSubstitution(s string) (substitution, error) {
 	// s is already validated as a complete s/old/new/ token by fields().
 	inner := s[2 : len(s)-1] // strip "s/" and trailing "/"
-	idx := strings.Index(inner, "/")
-	if idx < 0 {
+	before, after, ok := strings.Cut(inner, "/")
+	if !ok {
 		return substitution{}, fmt.Errorf("invalid substitution %q", s)
 	}
-	return substitution{old: inner[:idx], new: inner[idx+1:]}, nil
+	return substitution{old: before, new: after}, nil
 }
 
 // isRegexpOrOption reports whether arg looks like a regexp (/.../, !/.../, $)

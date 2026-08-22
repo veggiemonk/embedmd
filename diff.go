@@ -18,6 +18,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -114,7 +115,7 @@ func backtrack(trace [][]int, a, b []string) []edit {
 	var reversed []edit
 	x, y := len(a), len(b)
 
-	for d := len(trace) - 1; d >= 0; d-- {
+	for d, v := range slices.Backward(trace) {
 		if d == 0 {
 			// Whatever is left is the run of equal lines that starts the
 			// two texts.
@@ -126,7 +127,7 @@ func backtrack(trace [][]int, a, b []string) []edit {
 		}
 
 		// v holds the diagonals from -d to d, so diagonal k sits at k+d.
-		v, k := trace[d], x-y
+		k := x - y
 		prevK := k - 1
 		if k == -d || (k != d && v[k-1+d] < v[k+1+d]) {
 			prevK = k + 1
