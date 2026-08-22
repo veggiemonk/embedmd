@@ -334,3 +334,52 @@ func TestFormatVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestEmbedRewriteBareFileName(t *testing.T) {
+	// filepath.Split gives "" for a bare name, which sends the temporary
+	// file to the system temporary directory, on another file system.
+	path := newDoc(t, "[embedmd]:# (hello.go)\n")
+	t.Chdir(filepath.Dir(path))
+	t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "elsewhere"))
+
+	a := app{stdout: io.Discard, stderr: io.Discard}
+	if _, err := a.embed(t.Context(), []string{"docs.md"}, true, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, err := os.ReadFile("docs.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "[embedmd]:# (hello.go)\n```go\nhi\n```\n"; string(got) != want {
+		t.Errorf("expected file\n%q; got\n%q", want, got)
+	}
+}
+
+func TestEmbedRewriteThroughSymlink(t *testing.T) {
+	path := newDoc(t, "[embedmd]:# (hello.go)\n")
+	link := filepath.Join(filepath.Dir(path), "link.md")
+	if err := os.Symlink(path, link); err != nil {
+		t.Skipf("this system does not allow a symbolic link: %v", err)
+	}
+
+	a := app{stdout: io.Discard, stderr: io.Discard}
+	if _, err := a.embed(t.Context(), []string{link}, true, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	info, err := os.Lstat(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Error("the symbolic link was replaced by a file")
+	}
+	want := "[embedmd]:# (hello.go)\n```go\nhi\n```\n"
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != want {
+		t.Errorf("expected the file behind the link to hold\n%q; got\n%q", want, got)
+	}
+}

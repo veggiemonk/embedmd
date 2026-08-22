@@ -229,13 +229,25 @@ func (a app) processFile(ctx context.Context, path string, rewrite, doDiff bool)
 // in the same directory, flushes it, and renames it over path, so an
 // interrupted run leaves either the old file or the new one. Writing in place
 // leaves a mixture of the two.
+//
+// A rename replaces the name, so a hard link to the old file keeps the old
+// content. A symbolic link is followed, and the file it points at is the one
+// replaced.
 func replaceFile(path string, data []byte) error {
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		path = resolved
+	}
+
 	info, err := os.Stat(path)
 	if err != nil {
 		return err
 	}
 
-	dir, name := filepath.Split(path)
+	// filepath.Dir gives "." for a bare file name, where filepath.Split
+	// gives "", which sends the temporary file to the system temporary
+	// directory. A rename from there to here fails whenever the two sit on
+	// different file systems.
+	dir, name := filepath.Dir(path), filepath.Base(path)
 	tmp, err := os.CreateTemp(dir, name+".tmp*")
 	if err != nil {
 		return err
