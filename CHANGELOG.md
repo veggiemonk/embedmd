@@ -32,6 +32,14 @@ upstream stopped taking changes.
   running whichever binary is on `PATH`.
 - CI runs on push and on pull request, on Linux, macOS, and Windows, with
   `go vet`, `-race`, `gofmt`, and golangci-lint.
+- Every changed file carries a fork copyright line and a change notice, as
+  Apache License 2.0 section 4(b) asks for. `NOTICE` lists the upstream
+  contributors.
+
+### Fixed
+
+- A typo in a copyright line: "Google Intt." became "Google Inc." in
+  `main_test.go`.
 
 ### Removed
 

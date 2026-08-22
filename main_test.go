@@ -1,4 +1,9 @@
-// Copyright 2016 Google Intt. All rights reserved.
+// Copyright 2016 Google Inc. All rights reserved.
+// Copyright 2026 Julien Bisconti and the embedmd fork contributors.
+//
+// Changed in the github.com/veggiemonk/embedmd fork.
+// See the NOTICE file for the list of changes.
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at

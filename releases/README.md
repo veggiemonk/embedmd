@@ -1,6 +1,6 @@
 # embedmd releases
 
-Released versions are at https://github.com/veggiemonk/embedmd/releases.
+Released versions are at <https://github.com/veggiemonk/embedmd/releases>.
 
 Releases are built by GoReleaser. See `.goreleaser.yaml` and
 `.github/workflows/release.yaml`. To make a release, push a tag:

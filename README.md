@@ -241,8 +241,12 @@ See the [package documentation](https://pkg.go.dev/github.com/veggiemonk/embedmd
 
 This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE).
 
-The original code was written at Google by Francesc Campoy and others. See
-[NOTICE](NOTICE) for the attribution and for the list of changes.
+The original code was created by Francesc Campoy, first at Google Inc., with
+other contributors. See [NOTICE](NOTICE) for the full attribution and for the
+list of changes that this fork made.
+
+Copyright 2016 Google Inc.  
+Copyright 2026 Julien Bisconti and the embedmd fork contributors.
 
 This is not an official Google product, and it is not related to the original
 `campoy/embedmd` project.
