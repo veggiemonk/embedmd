@@ -53,13 +53,61 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
+	"strings"
 	"syscall"
 
 	"github.com/veggiemonk/embedmd/embedmd"
 )
 
-// modified while building by -ldflags.
-var version = "unknown"
+// buildVersion is stamped by -ldflags when GoReleaser builds a release. A
+// binary built any other way leaves it empty, and version reads the build
+// information instead.
+var buildVersion string
+
+// version reports the version of the running binary. "go install
+// module@version" records the version, and a build from a working tree
+// records the commit and whether the tree was clean, so a binary can always
+// say where it came from.
+func version() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		if buildVersion == "" {
+			return "unknown"
+		}
+		return buildVersion
+	}
+	return formatVersion(buildVersion, info)
+}
+
+func formatVersion(stamp string, info *debug.BuildInfo) string {
+	var revision, modified string
+	for _, setting := range info.Settings {
+		switch setting.Key {
+		case "vcs.revision":
+			revision = setting.Value
+		case "vcs.modified":
+			modified = setting.Value
+		}
+	}
+
+	v := stamp
+	if v == "" {
+		v = info.Main.Version
+	}
+	if v == "" || v == "(devel)" {
+		v = "unknown"
+		if revision != "" {
+			v = revision[:min(len(revision), 12)]
+		}
+	}
+	// Go already marks a pseudo-version from a changed tree with "+dirty".
+	// Use the same mark when the version comes from somewhere else.
+	if modified == "true" && !strings.HasSuffix(v, "+dirty") {
+		v += "+dirty"
+	}
+	return v
+}
 
 // Exit status. The values follow diff(1), so a script can tell a difference
 // from a failure.
@@ -92,7 +140,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 
 	if *printVersion {
-		_, _ = fmt.Fprintln(stdout, "embedmd version: "+version)
+		_, _ = fmt.Fprintln(stdout, "embedmd version: "+version())
 		return exitOK
 	}
 

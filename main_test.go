@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"testing"
 )
@@ -269,6 +270,67 @@ func TestRunExitStatus(t *testing.T) {
 			got := run(context.Background(), tt.args, io.Discard, io.Discard)
 			if got != tt.want {
 				t.Errorf("expected exit status %d; got %d", tt.want, got)
+			}
+		})
+	}
+}
+
+func TestFormatVersion(t *testing.T) {
+	buildInfo := func(mainVersion, revision, modified string) *debug.BuildInfo {
+		info := &debug.BuildInfo{}
+		info.Main.Version = mainVersion
+		if revision != "" {
+			info.Settings = append(info.Settings, debug.BuildSetting{Key: "vcs.revision", Value: revision})
+		}
+		if modified != "" {
+			info.Settings = append(info.Settings, debug.BuildSetting{Key: "vcs.modified", Value: modified})
+		}
+		return info
+	}
+
+	tests := []struct {
+		name  string
+		stamp string
+		info  *debug.BuildInfo
+		want  string
+	}{
+		{
+			name:  "a stamped release wins",
+			stamp: "v1.2.3",
+			info:  buildInfo("(devel)", "0123456789abcdef", "false"),
+			want:  "v1.2.3",
+		},
+		{
+			name: "go install records the version",
+			info: buildInfo("v1.2.3", "", ""),
+			want: "v1.2.3",
+		},
+		{
+			name: "a build from a clean tree shows the commit",
+			info: buildInfo("(devel)", "0123456789abcdef", "false"),
+			want: "0123456789ab",
+		},
+		{
+			name: "a build from a changed tree says so",
+			info: buildInfo("(devel)", "0123456789abcdef", "true"),
+			want: "0123456789ab+dirty",
+		},
+		{
+			name: "a pseudo-version is already marked",
+			info: buildInfo("v0.0.0-20260101000000-0123456789ab+dirty", "0123456789abcdef", "true"),
+			want: "v0.0.0-20260101000000-0123456789ab+dirty",
+		},
+		{
+			name: "nothing to go on",
+			info: buildInfo("", "", ""),
+			want: "unknown",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := formatVersion(tt.stamp, tt.info); got != tt.want {
+				t.Errorf("expected %q; got %q", tt.want, got)
 			}
 		})
 	}
