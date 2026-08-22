@@ -262,6 +262,7 @@ func TestRunExitStatus(t *testing.T) {
 		{name: "-w and -d together", args: []string{"-w", "-d", upToDate}, want: exitError},
 		{name: "no file", args: nil, want: exitError},
 		{name: "an unknown flag", args: []string{"-nope"}, want: exitError},
+		{name: "a request for the usage", args: []string{"-h"}, want: exitOK},
 	}
 
 	for _, tt := range tests {

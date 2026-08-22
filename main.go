@@ -136,6 +136,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		flags.PrintDefaults()
 	}
 	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return exitOK // -h asked for the usage and got it.
+		}
 		return exitError
 	}
 
