@@ -25,47 +25,127 @@ import (
 	"strings"
 )
 
-type commandRunner func(io.Writer, *command) error
+// commandRunner runs one directive and writes its output. eol is the line
+// terminator of the document, so that generated lines end like the lines
+// around them.
+type commandRunner func(w io.Writer, cmd *command, eol string) error
 
 func process(out io.Writer, in io.Reader, run commandRunner) error {
-	s := &countingScanner{bufio.NewScanner(in), 0}
+	w := &errWriter{w: out}
+	s := newLineScanner(in)
 
 	state := parsingText
-	var err error
 	for state != nil {
-		state, err = state(out, s, run)
+		next, err := state(w, s, run)
+		if err == nil {
+			err = w.err
+		}
 		if err != nil {
 			return fmt.Errorf("%d: %w", s.line, err)
 		}
+		state = next
 	}
 
-	if err := s.Err(); err != nil {
+	if err := s.readErr; err != nil {
 		return fmt.Errorf("%d: %w", s.line, err)
 	}
-	return nil
+	return w.err
 }
 
-type countingScanner struct {
-	*bufio.Scanner
-	line int
+// errWriter remembers the first write error. Once one happens, later writes
+// do nothing and report the same error, so a caller can check once at the end
+// instead of after every write.
+type errWriter struct {
+	w   io.Writer
+	err error
 }
 
-func (c *countingScanner) Scan() bool {
-	b := c.Scanner.Scan()
-	if b {
-		c.line++
+func (e *errWriter) Write(p []byte) (int, error) {
+	if e.err != nil {
+		return 0, e.err
 	}
-	return b
+	n, err := e.w.Write(p)
+	e.err = err
+	return n, err
+}
+
+func (e *errWriter) writeString(s string) {
+	if e.err != nil || s == "" {
+		return
+	}
+	_, e.err = io.WriteString(e.w, s)
+}
+
+// writeLine writes a line and its terminator.
+func (e *errWriter) writeLine(text, eol string) {
+	e.writeString(text)
+	e.writeString(eol)
+}
+
+// lineScanner reads one line at a time and keeps the line terminator, so that
+// a rewrite leaves CRLF as CRLF. bufio.Scanner cannot do this: it strips the
+// terminator, and it refuses a line longer than 64 KiB.
+type lineScanner struct {
+	r       *bufio.Reader
+	text    string
+	eol     string
+	line    int
+	readErr error
+}
+
+func newLineScanner(r io.Reader) *lineScanner {
+	return &lineScanner{r: bufio.NewReader(r)}
+}
+
+func (s *lineScanner) Scan() bool {
+	if s.readErr != nil {
+		return false
+	}
+	line, err := s.r.ReadString('\n')
+	if err != nil {
+		if err != io.EOF {
+			s.readErr = err
+			return false
+		}
+		if line == "" {
+			return false // end of file, on a line boundary.
+		}
+		// The last line carries no terminator.
+	}
+	s.line++
+	s.text, s.eol = splitEOL(line)
+	return true
+}
+
+func (s *lineScanner) Text() string { return s.text }
+
+func (s *lineScanner) Eol() string { return s.eol }
+
+// splitEOL separates a line from its terminator. The terminator is empty when
+// the last line of the input carries none.
+func splitEOL(line string) (text, eol string) {
+	switch {
+	case strings.HasSuffix(line, "\r\n"):
+		return line[:len(line)-2], "\r\n"
+	case strings.HasSuffix(line, "\n"):
+		return line[:len(line)-1], "\n"
+	default:
+		return line, ""
+	}
 }
 
 type textScanner interface {
-	Text() string
 	Scan() bool
+	// Text returns the current line without its terminator.
+	Text() string
+	// Eol returns the terminator of the current line: "\n", "\r\n", or ""
+	// for a last line that carries none.
+	Eol() string
 }
 
-type state func(io.Writer, textScanner, commandRunner) (state, error)
+type state func(*errWriter, textScanner, commandRunner) (state, error)
 
-func parsingText(out io.Writer, s textScanner, run commandRunner) (state, error) {
+func parsingText(out *errWriter, s textScanner, run commandRunner) (state, error) {
 	if !s.Scan() {
 		return nil, nil // end of file, which is fine.
 	}
@@ -75,20 +155,27 @@ func parsingText(out io.Writer, s textScanner, run commandRunner) (state, error)
 	case strings.HasPrefix(line, "```"):
 		return codeParser{print: true}.parse, nil
 	default:
-		fmt.Fprintln(out, s.Text())
+		out.writeLine(line, s.Eol())
 		return parsingText, nil
 	}
 }
 
-func parsingCmd(out io.Writer, s textScanner, run commandRunner) (state, error) {
+func parsingCmd(out *errWriter, s textScanner, run commandRunner) (state, error) {
 	line := s.Text()
-	fmt.Fprintln(out, line)
-	args := line[strings.Index(line, "#")+1:]
+	eol := s.Eol()
+	if eol == "" {
+		// The directive is the last line and carries no terminator, but the
+		// generated block still has to start on a line of its own.
+		eol = "\n"
+	}
+	out.writeLine(line, eol)
+
+	_, args, _ := strings.Cut(line, "#")
 	cmd, err := parseCommand(args)
 	if err != nil {
 		return nil, err
 	}
-	if err := run(out, cmd); err != nil {
+	if err := run(out, cmd, eol); err != nil {
 		return nil, err
 	}
 	if !s.Scan() {
@@ -97,15 +184,15 @@ func parsingCmd(out io.Writer, s textScanner, run commandRunner) (state, error) 
 	if strings.HasPrefix(s.Text(), "```") {
 		return codeParser{print: false}.parse, nil
 	}
-	fmt.Fprintln(out, s.Text())
+	out.writeLine(s.Text(), s.Eol())
 	return parsingText, nil
 }
 
 type codeParser struct{ print bool }
 
-func (c codeParser) parse(out io.Writer, s textScanner, run commandRunner) (state, error) {
+func (c codeParser) parse(out *errWriter, s textScanner, run commandRunner) (state, error) {
 	if c.print {
-		fmt.Fprintln(out, s.Text())
+		out.writeLine(s.Text(), s.Eol())
 	}
 	if !s.Scan() {
 		return nil, fmt.Errorf("unbalanced code section")
@@ -116,7 +203,7 @@ func (c codeParser) parse(out io.Writer, s textScanner, run commandRunner) (stat
 
 	// print the end of the code section if needed and go back to parsing text.
 	if c.print {
-		fmt.Fprintln(out, s.Text())
+		out.writeLine(s.Text(), s.Eol())
 	}
 	return parsingText, nil
 }

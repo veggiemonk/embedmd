@@ -216,7 +216,7 @@ func TestExtractFromFile(t *testing.T) {
 			}
 
 			w := new(bytes.Buffer)
-			err := e.runCommand(context.Background(), w, &tt.cmd)
+			err := e.runCommand(context.Background(), w, &tt.cmd, "\n")
 			if !testutil.EqErr(t, tt.name, err, tt.err) {
 				return
 			}

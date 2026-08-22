@@ -75,7 +75,7 @@ func Process(ctx context.Context, out io.Writer, in io.Reader, opts ...Option) e
 	for _, opt := range opts {
 		opt.f(&e)
 	}
-	run := func(w io.Writer, cmd *command) error { return e.runCommand(ctx, w, cmd) }
+	run := func(w io.Writer, cmd *command, eol string) error { return e.runCommand(ctx, w, cmd, eol) }
 	return process(out, in, run)
 }
 
@@ -113,7 +113,7 @@ type embedder struct {
 	baseDir string
 }
 
-func (e *embedder) runCommand(ctx context.Context, w io.Writer, cmd *command) error {
+func (e *embedder) runCommand(ctx context.Context, w io.Writer, cmd *command, eol string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -141,12 +141,14 @@ func (e *embedder) runCommand(ctx context.Context, w io.Writer, cmd *command) er
 		b = append(b, '\n')
 	}
 
-	fmt.Fprintln(w, "```"+cmd.lang)
+	if _, err := io.WriteString(w, "```"+cmd.lang+eol); err != nil {
+		return err
+	}
 	if _, err := w.Write(b); err != nil {
 		return err
 	}
-	fmt.Fprintln(w, "```")
-	return nil
+	_, err = io.WriteString(w, "```"+eol)
+	return err
 }
 
 // extract returns the part of b delimited by the start and end regexps.

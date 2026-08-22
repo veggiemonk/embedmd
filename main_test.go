@@ -23,6 +23,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -51,6 +52,14 @@ func TestEmbedNoPaths(t *testing.T) {
 }
 
 func TestEmbedFiles(t *testing.T) {
+	// The markdown file is a fake, but the file it embeds is a real one, so
+	// the fetcher does real work.
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "hello.go"), []byte("hi\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "docs.md")
+
 	tc := []struct {
 		name string
 		in   string
@@ -58,36 +67,47 @@ func TestEmbedFiles(t *testing.T) {
 		err  string
 		d, w bool
 	}{
-		{name: "rewriting a single file",
+		{name: "rewriting a file",
+			in:  "[embedmd]:# (hello.go)\n",
+			w:   true,
+			out: "[embedmd]:# (hello.go)\n```go\nhi\n```\n",
+		},
+		{name: "rewriting adds no line terminator of its own",
 			in:  "one\ntwo\nthree",
 			w:   true,
-			out: "one\ntwo\nthree\n",
+			out: "one\ntwo\nthree",
 		},
-		{name: "diffing a single file",
-			in:  "one\ntwo\nthree",
+		{name: "rewriting keeps CRLF",
+			in:  "one\r\ntwo\r\n",
+			w:   true,
+			out: "one\r\ntwo\r\n",
+		},
+		{name: "diffing a file",
+			in:  "[embedmd]:# (hello.go)\n",
 			d:   true,
-			out: "@@ -1,3 +1,4 @@\n one\n two\n three\n+\n",
+			out: "@@ -1,2 +1,5 @@\n [embedmd]:# (hello.go)\n+```go\n+hi\n+```\n \n",
 		},
 	}
 
 	defer func(f func(string) (file, error)) { openFile = f }(openFile)
 
 	for _, tt := range tc {
-		f := newFakeFile(tt.in)
-		openFile = func(path string) (file, error) { return f, nil }
-		stdout = os.Stdout
-		if tt.d {
-			stdout = &f.buf
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFakeFile(tt.in)
+			openFile = func(string) (file, error) { return f, nil }
+			stdout = os.Stdout
+			if tt.d {
+				stdout = &f.buf
+			}
 
-		_, err := embed(context.Background(), []string{"docs.md"}, tt.w, tt.d)
-		if !testutil.EqErr(t, tt.name, err, tt.err) {
-			continue
-		}
-		if got := f.buf.String(); tt.out != got {
-			t.Errorf("case [%s]: expected output \n%q; got\n%q", tt.name, tt.out, got)
-		}
-
+			_, err := embed(context.Background(), []string{path}, tt.w, tt.d)
+			if !testutil.EqErr(t, tt.name, err, tt.err) {
+				return
+			}
+			if got := f.buf.String(); tt.out != got {
+				t.Errorf("expected output \n%q; got\n%q", tt.out, got)
+			}
+		})
 	}
 }
 

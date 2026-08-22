@@ -20,6 +20,7 @@ package embedmd
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -50,7 +51,7 @@ func TestParser(t *testing.T) {
 			name: "a command",
 			in:   "one\n[embedmd]:# (code.go)",
 			out:  "one\n[embedmd]:# (code.go)\nOK\n",
-			run: func(w io.Writer, cmd *command) error {
+			run: func(w io.Writer, cmd *command, eol string) error {
 				if cmd.path != "code.go" {
 					return fmt.Errorf("bad command")
 				}
@@ -62,7 +63,7 @@ func TestParser(t *testing.T) {
 			name: "a command then some text",
 			in:   "one\n[embedmd]:# (code.go)\nYay\n",
 			out:  "one\n[embedmd]:# (code.go)\nOK\nYay\n",
-			run: func(w io.Writer, cmd *command) error {
+			run: func(w io.Writer, cmd *command, eol string) error {
 				if cmd.path != "code.go" {
 					return fmt.Errorf("bad command")
 				}
@@ -110,3 +111,81 @@ func TestParser(t *testing.T) {
 		})
 	}
 }
+
+func TestProcessKeepsLineEndings(t *testing.T) {
+	run := func(w io.Writer, cmd *command, eol string) error {
+		_, err := io.WriteString(w, "```"+eol+"code"+eol+"```"+eol)
+		return err
+	}
+
+	tests := []struct {
+		name string
+		in   string
+		out  string
+	}{
+		{
+			name: "CRLF stays CRLF",
+			in:   "one\r\ntwo\r\n```\r\nkept\r\n```\r\n",
+			out:  "one\r\ntwo\r\n```\r\nkept\r\n```\r\n",
+		},
+		{
+			name: "no terminator on the last line stays missing",
+			in:   "one\ntwo",
+			out:  "one\ntwo",
+		},
+		{
+			name: "mixed terminators each stay as they are",
+			in:   "one\r\ntwo\nthree\r\n",
+			out:  "one\r\ntwo\nthree\r\n",
+		},
+		{
+			name: "a generated block follows the terminator of its directive",
+			in:   "[embedmd]:# (code.go)\r\ntext\r\n",
+			out:  "[embedmd]:# (code.go)\r\n```\r\ncode\r\n```\r\ntext\r\n",
+		},
+		{
+			name: "a directive on the last line gets a terminator",
+			in:   "[embedmd]:# (code.go)",
+			out:  "[embedmd]:# (code.go)\n```\ncode\n```\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out bytes.Buffer
+			if err := process(&out, strings.NewReader(tt.in), run); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got := out.String(); got != tt.out {
+				t.Errorf("expected %q; got %q", tt.out, got)
+			}
+		})
+	}
+}
+
+func TestProcessLongLine(t *testing.T) {
+	// bufio.Scanner refuses a line longer than 64 KiB, and reported it
+	// against line 0, which does not exist.
+	long := strings.Repeat("x", 70000)
+	in := "first\n" + long + "\nlast\n"
+
+	var out bytes.Buffer
+	if err := process(&out, strings.NewReader(in), nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := out.String(); got != in {
+		t.Errorf("expected %d bytes back; got %d", len(in), len(got))
+	}
+}
+
+func TestProcessWriteError(t *testing.T) {
+	want := errors.New("disk is full")
+	err := process(failingWriter{want}, strings.NewReader("one\ntwo\n"), nil)
+	if !errors.Is(err, want) {
+		t.Fatalf("expected %v; got %v", want, err)
+	}
+}
+
+type failingWriter struct{ err error }
+
+func (f failingWriter) Write([]byte) (int, error) { return 0, f.err }
