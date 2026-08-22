@@ -1,5 +1,11 @@
 version: "2"
 
+# The lint job checks the formatting as well, so a badly formatted file
+# cannot pass CI. "golangci-lint fmt" puts it right.
+formatters:
+  enable:
+    - gofmt
+
 linters:
   enable:
     - errcheck
