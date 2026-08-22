@@ -229,6 +229,16 @@ func TestParseCommand(t *testing.T) {
 			err:  "unbalanced / in substitution",
 		},
 		{
+			name: "dollar as the only range argument",
+			in:   "(hello.go go $)",
+			err:  "$ must follow a start regexp",
+		},
+		{
+			name: "dollar before a regexp",
+			in:   "(hello.go go $ /end/)",
+			err:  "$ must follow a start regexp",
+		},
+		{
 			name: "extra arguments",
 			in:   "(foo.go /start/ $ extra)", err: "unknown option \"extra\"",
 		},

@@ -356,6 +356,13 @@ func TestProcess(t *testing.T) {
 				"Yay!\n",
 		},
 		{
+			name: "dollar as the only range argument",
+			in: "# This is some markdown\n" +
+				"[embedmd]:# (code.go go $)\n",
+			files: map[string][]byte{"code.go": []byte(content)},
+			err:   "2: $ must follow a start regexp",
+		},
+		{
 			name: "ignore commands in code blocks",
 			in: "# This is some markdown\n" +
 				"```markdown\n" +

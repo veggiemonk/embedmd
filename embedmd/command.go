@@ -77,6 +77,13 @@ func parseCommand(s string) (*command, error) {
 			return nil, errors.New("exclude (!) cannot be used with $")
 		}
 
+		// $ means "to the end of the file", so it only makes sense as the
+		// second range argument. Without this check the start slot stays
+		// empty while the end slot is filled, and extract dereferences nil.
+		if isDollar && cmd.start == nil {
+			return nil, errors.New("$ must follow a start regexp")
+		}
+
 		if !isRegexp && !isExclude && !isDollar {
 			break
 		}
