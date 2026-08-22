@@ -56,6 +56,25 @@ header and that this fork changed is covered by this notice.
   Apache License 2.0 section 4(b) asks for.
 * A typo in a copyright line was corrected: "Google Intt." became
   "Google Inc." in main_test.go.
+* A local path is read with os.OpenInRoot, so it cannot leave the base
+  directory, not even through a symbolic link.
+* The line terminator of each line is kept, so a CRLF file stays a CRLF file.
+* A line longer than 64 KiB no longer stops the run.
+* The rewrite writes a temporary file and renames it, instead of writing over
+  the file in place.
+* An HTTP response above the size limit is an error, not a silent truncation.
+* The HTTP client is a field of the fetcher, with the new WithHTTPClient
+  option, instead of a package variable.
+* The exit status separates "a difference was found" from "the run failed".
+* Every file named on the command line is processed, and every failure is
+  reported.
+* The unified diff is computed in this repository. The dependency on
+  pmezard/go-difflib is gone.
+* The version comes from the build information when no build stamp is given.
+* A bare $ as the first range argument is refused. It used to crash the tool.
+* The range regexps are strings, not pointers.
+* Every write is checked.
+* internal/testutil is deleted.
 
 Earlier changes, made before the fork point and merged upstream, are recorded
 in the git history.

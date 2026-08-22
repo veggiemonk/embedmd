@@ -46,6 +46,20 @@ If you supply your own `Fetcher`, add the context to your `Fetch` method:
 +func (f myFetcher) Fetch(ctx context.Context, dir, path string) ([]byte, error) {
 ```
 
+If you supply your own `Fetcher`, it is also responsible for its own limits.
+`Process` used to check that a path stayed inside the base directory before it
+called `Fetch`. That check now lives in the built-in fetcher.
+
+## Behaviour that changed in this fork
+
+- `-d` exits with status 1 when it finds a difference, and status 2 when the
+  run fails. Both used to be status 2. A script that tests for status 2 after
+  `-d` needs one line changed.
+- `-w` keeps the line terminators of the file. A CRLF file used to become an
+  LF file, and a file with no terminator on the last line used to get one.
+- A bare `$` as the first range argument, as in `[embedmd]:# (f.go go $)`, is
+  refused. It used to crash the tool.
+
 ## Behaviour that changed before the fork
 
 `embedmd` no longer reads from the standard input. Give it at least one file.
