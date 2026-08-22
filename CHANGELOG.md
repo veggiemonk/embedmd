@@ -14,9 +14,11 @@ upstream stopped taking changes.
 
 - Directive option `!` before a regular expression. The matching line acts as a
   boundary but stays out of the output.
-- Directive option `dedent`. It removes the common leading whitespace.
+- Directive option `dedent`. It removes the common leading whitespace, whether
+  the start line is kept or excluded.
 - Directive option `trim`. It removes trailing blank lines.
 - Directive option `s/old/new/`. It replaces text in the extracted content.
+  Write a slash inside `old` or `new` as `\/`.
 - `Process` and `Fetcher.Fetch` take a `context.Context`. The HTTP fetch obeys
   cancellation and deadlines.
 - The command cancels its work on SIGINT and SIGTERM.
@@ -42,7 +44,8 @@ upstream stopped taking changes.
   last two. **Breaking** for a script that tests for status 2 after `-d`.
 - `-w` writes a temporary file and renames it over the file, instead of
   writing over the file in place. It writes nothing when the result equals the
-  file on disk.
+  file on disk. It follows a symbolic link and replaces the file behind it. A
+  hard link to the old content is not kept: a rename replaces a name.
 - `-w` keeps the line terminator of each line and adds none of its own, so a
   CRLF file stays a CRLF file, and a file with no terminator on the last line
   keeps none.

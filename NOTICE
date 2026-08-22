@@ -61,7 +61,7 @@ header and that this fork changed is covered by this notice.
 * The line terminator of each line is kept, so a CRLF file stays a CRLF file.
 * A line longer than 64 KiB no longer stops the run.
 * The rewrite writes a temporary file and renames it, instead of writing over
-  the file in place.
+  the file in place. A symbolic link is followed.
 * An HTTP response above the size limit is an error, not a silent truncation.
 * The HTTP client is a field of the fetcher, with the new WithHTTPClient
   option, instead of a package variable.
@@ -73,6 +73,8 @@ header and that this fork changed is covered by this notice.
 * The version comes from the build information when no build stamp is given.
 * A bare $ as the first range argument is refused. It used to crash the tool.
 * The range regexps are strings, not pointers.
+* A substitution takes \/ as a literal slash, and an empty text to replace is
+  refused.
 * Every write is checked.
 * internal/testutil is deleted.
 
