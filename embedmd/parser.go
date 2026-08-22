@@ -89,6 +89,7 @@ type lineScanner struct {
 	r       *bufio.Reader
 	text    string
 	eol     string
+	lastEol string // the last terminator seen, for a last line without one.
 	line    int
 	readErr error
 }
@@ -114,12 +115,25 @@ func (s *lineScanner) Scan() bool {
 	}
 	s.line++
 	s.text, s.eol = splitEOL(line)
+	if s.eol != "" {
+		s.lastEol = s.eol
+	}
 	return true
 }
 
 func (s *lineScanner) Text() string { return s.text }
 
 func (s *lineScanner) Eol() string { return s.eol }
+
+func (s *lineScanner) DocumentEol() string {
+	if s.eol != "" {
+		return s.eol
+	}
+	if s.lastEol != "" {
+		return s.lastEol
+	}
+	return "\n"
+}
 
 // splitEOL separates a line from its terminator. The terminator is empty when
 // the last line of the input carries none.
@@ -141,6 +155,9 @@ type textScanner interface {
 	// Eol returns the terminator of the current line: "\n", "\r\n", or ""
 	// for a last line that carries none.
 	Eol() string
+	// DocumentEol returns the terminator to give a line that needs one: the
+	// terminator of the current line, or the last one seen in the file.
+	DocumentEol() string
 }
 
 type state func(*errWriter, textScanner, commandRunner) (state, error)
@@ -162,12 +179,10 @@ func parsingText(out *errWriter, s textScanner, run commandRunner) (state, error
 
 func parsingCmd(out *errWriter, s textScanner, run commandRunner) (state, error) {
 	line := s.Text()
-	eol := s.Eol()
-	if eol == "" {
-		// The directive is the last line and carries no terminator, but the
-		// generated block still has to start on a line of its own.
-		eol = "\n"
-	}
+	// A directive on a last line with no terminator still needs one, because
+	// the generated block has to start on a line of its own. It takes the
+	// terminator the rest of the file uses.
+	eol := s.DocumentEol()
 	out.writeLine(line, eol)
 
 	_, args, _ := strings.Cut(line, "#")

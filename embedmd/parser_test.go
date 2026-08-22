@@ -152,6 +152,11 @@ func TestProcessKeepsLineEndings(t *testing.T) {
 			in:   "[embedmd]:# (code.go)",
 			out:  "[embedmd]:# (code.go)\n```\ncode\n```\n",
 		},
+		{
+			name: "a directive on a last line without one follows the file",
+			in:   "one\r\n[embedmd]:# (code.go)",
+			out:  "one\r\n[embedmd]:# (code.go)\r\n```\r\ncode\r\n```\r\n",
+		},
 	}
 
 	for _, tt := range tests {

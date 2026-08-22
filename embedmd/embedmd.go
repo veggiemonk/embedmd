@@ -57,6 +57,7 @@
 package embedmd
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -129,12 +130,6 @@ func (e *embedder) runCommand(ctx context.Context, w io.Writer, cmd *command, eo
 		return fmt.Errorf("could not extract content from %s: %w", cmd.path, err)
 	}
 
-	// A start regexp can match in the middle of a line, and then the first
-	// line of the content carries none of its own indentation. dedent has to
-	// leave that line out of the comparison, or it finds no common prefix and
-	// does nothing at all. Excluding the start line removes the problem with
-	// the line.
-	wholeFirstLine := cmd.excludeStart || offset == 0 || b[offset-1] == '\n'
 	b = content
 
 	// Apply transforms in order: exclude → trim → dedent → substitute.
@@ -143,12 +138,23 @@ func (e *embedder) runCommand(ctx context.Context, w io.Writer, cmd *command, eo
 		b = trimTrailingBlankLines(b)
 	}
 	if cmd.dedent {
+		// A start regexp can match in the middle of a line, and then the first
+		// line of the content carries none of its own indentation. dedent has to
+		// leave that line out of the comparison, or it finds no common prefix and
+		// does nothing at all. Excluding the start line removes the problem with
+		// the line.
+		wholeFirstLine := cmd.excludeStart || offset == 0 || b[offset-1] == '\n'
 		b = dedentBytes(b, wholeFirstLine)
 	}
 	b = applySubstitutions(b, cmd.substitutions)
 
+	// The content may stop in the middle of a line, when a regexp matched
+	// there. Close that line the way the document closes its lines, or a
+	// CRLF document ends up with one LF line inside the block. A regexp such
+	// as /package.*/ over a CRLF file stops on the CR itself, which is half
+	// of a terminator, so drop it before adding a whole one.
 	if len(b) > 0 && b[len(b)-1] != '\n' {
-		b = append(b, '\n')
+		b = append(bytes.TrimSuffix(b, []byte("\r")), eol...)
 	}
 
 	if _, err := io.WriteString(w, "```"+cmd.lang+eol); err != nil {
