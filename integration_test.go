@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -33,7 +34,13 @@ func TestIntegration(t *testing.T) {
 		t.Skip("integration test needs network access")
 	}
 
-	bin := filepath.Join(t.TempDir(), "embedmd")
+	// Windows only runs a file whose name carries an extension from
+	// PATHEXT, and exec.Command refuses one that does not.
+	name := "embedmd"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	bin := filepath.Join(t.TempDir(), name)
 	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
 		t.Fatalf("could not build embedmd (%v): %s", err, out)
 	}
