@@ -256,11 +256,32 @@ func TestExtractFromFile(t *testing.T) {
 
 type fakeFileProvider map[string][]byte
 
+// The keys hold forward slashes, as a directive writes them, so the lookup
+// has to put the resolved path back into that form. filepath.Join uses a
+// backslash on Windows.
 func (c fakeFileProvider) Fetch(_ context.Context, dir, path string) ([]byte, error) {
-	if f, ok := c[filepath.Join(dir, path)]; ok {
+	if f, ok := c[joinSlash(dir, path)]; ok {
 		return f, nil
 	}
 	return nil, os.ErrNotExist
+}
+
+func joinSlash(dir, path string) string {
+	return filepath.ToSlash(filepath.Join(dir, filepath.FromSlash(path)))
+}
+
+func TestRunCommandClosesTheBlockWithTheDocumentTerminator(t *testing.T) {
+	// The content stops where the regexp matched, in the middle of a line.
+	e := embedder{Fetcher: fakeFileProvider{"code.go": []byte("hello there\n")}}
+
+	var w bytes.Buffer
+	cmd := &command{path: "code.go", lang: "go", start: "/hello/"}
+	if err := e.runCommand(t.Context(), &w, cmd, "\r\n"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if want := "```go\r\nhello\r\n```\r\n"; w.String() != want {
+		t.Errorf("expected %q; got %q", want, w.String())
+	}
 }
 
 func TestProcess(t *testing.T) {
@@ -421,8 +442,7 @@ type mixedContentProvider struct {
 
 func (c mixedContentProvider) Fetch(_ context.Context, dir, path string) ([]byte, error) {
 	if !strings.HasPrefix(path, "http://") && !strings.HasPrefix(path, "https://") {
-		resolved := filepath.Join(dir, filepath.FromSlash(path))
-		if f, ok := c.files[resolved]; ok {
+		if f, ok := c.files[joinSlash(dir, path)]; ok {
 			return f, nil
 		}
 		return nil, os.ErrNotExist
