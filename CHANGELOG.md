@@ -6,6 +6,8 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-22
+
 This is the first release of the fork. The project moved from
 `github.com/campoy/embedmd` to `github.com/veggiemonk/embedmd`, because
 upstream stopped taking changes.
@@ -95,3 +97,6 @@ The fork also carries these fixes, which came before the fork point:
 
 For the history of the original project, see
 https://github.com/campoy/embedmd.
+
+[Unreleased]: https://github.com/veggiemonk/embedmd/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/veggiemonk/embedmd/releases/tag/v1.0.0
