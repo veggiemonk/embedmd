@@ -124,7 +124,12 @@ func processFile(ctx context.Context, path string, rewrite, doDiff bool) (foundD
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
+	// Report a failed close, but do not hide an earlier error.
+	defer func() {
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 
 	var original bytes.Buffer
 	var r io.Reader = f
