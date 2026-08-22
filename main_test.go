@@ -20,7 +20,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/campoy/embedmd/internal/testutil"
+	"github.com/veggiemonk/embedmd/internal/testutil"
 )
 
 func TestEmbedNoPaths(t *testing.T) {

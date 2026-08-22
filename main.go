@@ -32,7 +32,7 @@
 //	output.
 //
 // For more information on the format of the commands, read the documentation
-// of the github.com/campoy/embedmd/embedmd package.
+// of the github.com/veggiemonk/embedmd/embedmd package.
 package main
 
 import (
@@ -43,8 +43,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/campoy/embedmd/embedmd"
 	"github.com/pmezard/go-difflib/difflib"
+	"github.com/veggiemonk/embedmd/embedmd"
 )
 
 // modified while building by -ldflags.

@@ -61,7 +61,7 @@ print 'hello'
 
 And why not include some file directly from GitHub?
 
-[embedmd]:# (https://raw.githubusercontent.com/campoy/embedmd/master/sample/hello.go /func main/ $)
+[embedmd]:# (https://raw.githubusercontent.com/veggiemonk/embedmd/master/sample/hello.go /func main/ $)
 ```go
 func main() {
 	fmt.Println("Hello, there, it is", time.Now())

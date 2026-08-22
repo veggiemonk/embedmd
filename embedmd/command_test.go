@@ -16,7 +16,7 @@ package embedmd
 import (
 	"testing"
 
-	"github.com/campoy/embedmd/internal/testutil"
+	"github.com/veggiemonk/embedmd/internal/testutil"
 )
 
 func TestFields(t *testing.T) {
