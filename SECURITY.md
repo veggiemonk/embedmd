@@ -24,7 +24,12 @@ take longer.
 URLs. Both inputs come from the file it processes.
 
 - A local path cannot escape the base directory. The base directory is the
-  directory of the Markdown file.
+  directory of the Markdown file. The read goes through `os.OpenInRoot`, so a
+  `..` path, an absolute path, and a symbolic link that points out of the base
+  directory are all refused.
+- This holds for the built-in fetcher. A program that supplies its own
+  `Fetcher` with `WithFetcher`, or that calls `Process` without
+  `WithBaseDir`, has to set its own boundary.
 - An HTTP fetch has a 10 second timeout and a 10 MiB response limit.
 - The tool follows any URL that a directive gives. Do not run `embedmd` on
   Markdown from a source you do not trust.

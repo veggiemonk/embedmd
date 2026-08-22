@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -130,5 +132,72 @@ func TestProcessContextAlreadyCancelled(t *testing.T) {
 	err := Process(ctx, &out, in, WithFetcher(fakeFileProvider{"code.go": []byte("package main\n")}))
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+}
+
+func TestReadLocalFile(t *testing.T) {
+	// base/root is the base directory. base/secret.go sits outside it.
+	base := t.TempDir()
+	root := filepath.Join(base, "root")
+	if err := os.MkdirAll(filepath.Join(root, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(path, data string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	secret := filepath.Join(base, "secret.go")
+	write(filepath.Join(root, "code.go"), "inside\n")
+	write(filepath.Join(root, "sub", "code.go"), "nested\n")
+	write(secret, "secret\n")
+
+	// A symbolic link inside the base directory that points out of it.
+	// Creating one needs a privilege on Windows, so the case is optional.
+	link := filepath.Join(root, "escape.go")
+	haveSymlink := os.Symlink(secret, link) == nil
+
+	type testCase struct {
+		name    string
+		dir     string
+		path    string
+		want    string
+		escapes bool
+	}
+	tests := []testCase{
+		{name: "file in the base directory", dir: root, path: "code.go", want: "inside\n"},
+		{name: "file in a sub directory", dir: root, path: "sub/code.go", want: "nested\n"},
+		{name: "sub directory then back up", dir: root, path: "sub/../code.go", want: "inside\n"},
+		{name: "parent directory", dir: root, path: "../secret.go", escapes: true},
+		{name: "several parent directories", dir: root, path: "../../../../etc/hosts", escapes: true},
+		{name: "absolute path", dir: root, path: filepath.ToSlash(secret), escapes: true},
+		{name: "no base directory reads anywhere", dir: "", path: filepath.ToSlash(secret), want: "secret\n"},
+	}
+	if haveSymlink {
+		tests = append(tests, testCase{
+			name: "symbolic link out of the base directory", dir: root, path: "escape.go", escapes: true,
+		})
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := readLocalFile(tt.dir, tt.path)
+			if tt.escapes {
+				if err == nil {
+					t.Fatalf("expected the read to fail; got %q", b)
+				}
+				if !strings.Contains(err.Error(), "escapes") {
+					t.Fatalf("expected an escape error; got %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if string(b) != tt.want {
+				t.Errorf("expected %q; got %q", tt.want, b)
+			}
+		})
 	}
 }

@@ -20,8 +20,10 @@ package embedmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -37,6 +39,10 @@ import (
 // such as URLs.
 // Implementations should stop their work and return an error when the given
 // context is done.
+//
+// The default implementation keeps local reads inside the base directory. A
+// custom implementation is responsible for its own limits: embedmd applies
+// none on its behalf.
 type Fetcher interface {
 	Fetch(ctx context.Context, dir, path string) ([]byte, error)
 }
@@ -47,9 +53,36 @@ var httpClient = &http.Client{Timeout: 10 * time.Second}
 
 type fetcher struct{}
 
+// readLocalFile reads path, resolved against the base directory dir.
+//
+// When dir is set, the read stays inside dir: os.OpenInRoot refuses "..", an
+// absolute path, and a symbolic link that points out of dir. A string compare
+// on the cleaned path cannot do the last one.
+//
+// When dir is empty there is no boundary to keep, so the path is read as
+// given. Callers that process untrusted markdown must set a base directory
+// with WithBaseDir.
+func readLocalFile(dir, path string) ([]byte, error) {
+	name := filepath.FromSlash(path)
+	if dir == "" {
+		return os.ReadFile(name)
+	}
+	f, err := os.OpenInRoot(dir, name)
+	if err != nil {
+		// Drop the *fs.PathError: the caller already names the path.
+		var perr *fs.PathError
+		if errors.As(err, &perr) {
+			return nil, perr.Err
+		}
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	return io.ReadAll(f)
+}
+
 func (fetcher) Fetch(ctx context.Context, dir, path string) ([]byte, error) {
 	if !strings.HasPrefix(path, "http://") && !strings.HasPrefix(path, "https://") {
-		return os.ReadFile(filepath.Join(dir, filepath.FromSlash(path)))
+		return readLocalFile(dir, path)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, path, nil)
