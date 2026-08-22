@@ -15,6 +15,7 @@ package embedmd
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/url"
 	"os"
@@ -210,7 +211,7 @@ func TestExtractFromFile(t *testing.T) {
 			}
 
 			w := new(bytes.Buffer)
-			err := e.runCommand(w, &tt.cmd)
+			err := e.runCommand(context.Background(), w, &tt.cmd)
 			if !testutil.EqErr(t, tt.name, err, tt.err) {
 				return
 			}
@@ -223,7 +224,7 @@ func TestExtractFromFile(t *testing.T) {
 
 type fakeFileProvider map[string][]byte
 
-func (c fakeFileProvider) Fetch(dir, path string) ([]byte, error) {
+func (c fakeFileProvider) Fetch(_ context.Context, dir, path string) ([]byte, error) {
 	if f, ok := c[filepath.Join(dir, path)]; ok {
 		return f, nil
 	}
@@ -375,7 +376,7 @@ func TestProcess(t *testing.T) {
 			if tt.dir != "" {
 				opts = append(opts, WithBaseDir(tt.dir))
 			}
-			err := Process(&out, strings.NewReader(tt.in), opts...)
+			err := Process(context.Background(), &out, strings.NewReader(tt.in), opts...)
 			if !testutil.EqErr(t, tt.name, err, tt.err) {
 				return
 			}
@@ -390,7 +391,7 @@ type mixedContentProvider struct {
 	files, urls map[string][]byte
 }
 
-func (c mixedContentProvider) Fetch(dir, path string) ([]byte, error) {
+func (c mixedContentProvider) Fetch(_ context.Context, dir, path string) ([]byte, error) {
 	if !strings.HasPrefix(path, "http://") && !strings.HasPrefix(path, "https://") {
 		resolved := filepath.Join(dir, filepath.FromSlash(path))
 		if f, ok := c.files[resolved]; ok {

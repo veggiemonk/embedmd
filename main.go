@@ -37,11 +37,14 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/pmezard/go-difflib/difflib"
 	"github.com/veggiemonk/embedmd/embedmd"
@@ -67,7 +70,10 @@ func main() {
 		return
 	}
 
-	diff, err := embed(flag.Args(), *rewrite, *doDiff)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	diff, err := embed(ctx, flag.Args(), *rewrite, *doDiff)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
@@ -79,7 +85,7 @@ func main() {
 
 var stdout io.Writer = os.Stdout
 
-func embed(paths []string, rewrite, doDiff bool) (foundDiff bool, err error) {
+func embed(ctx context.Context, paths []string, rewrite, doDiff bool) (foundDiff bool, err error) {
 	if rewrite && doDiff {
 		return false, fmt.Errorf("error: cannot use -w and -d simultaneously")
 	}
@@ -89,7 +95,7 @@ func embed(paths []string, rewrite, doDiff bool) (foundDiff bool, err error) {
 	}
 
 	for _, path := range paths {
-		d, err := processFile(path, rewrite, doDiff)
+		d, err := processFile(ctx, path, rewrite, doDiff)
 		if err != nil {
 			return false, fmt.Errorf("%s:%v", path, err)
 		}
@@ -109,7 +115,7 @@ var openFile = func(name string) (file, error) {
 	return os.OpenFile(name, os.O_RDWR, 0666)
 }
 
-func processFile(path string, rewrite, doDiff bool) (foundDiff bool, err error) {
+func processFile(ctx context.Context, path string, rewrite, doDiff bool) (foundDiff bool, err error) {
 	if filepath.Ext(path) != ".md" {
 		return false, fmt.Errorf("not a markdown file")
 	}
@@ -127,7 +133,7 @@ func processFile(path string, rewrite, doDiff bool) (foundDiff bool, err error) 
 	}
 
 	buf := new(bytes.Buffer)
-	if err := embedmd.Process(buf, r, embedmd.WithBaseDir(filepath.Dir(path))); err != nil {
+	if err := embedmd.Process(ctx, buf, r, embedmd.WithBaseDir(filepath.Dir(path))); err != nil {
 		return false, err
 	}
 

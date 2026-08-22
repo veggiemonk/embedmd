@@ -15,6 +15,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"os"
 	"strings"
@@ -39,7 +40,7 @@ func TestEmbedNoPaths(t *testing.T) {
 	}
 
 	for _, tt := range tc {
-		_, err := embed(nil, tt.w, tt.d)
+		_, err := embed(context.Background(), nil, tt.w, tt.d)
 		testutil.EqErr(t, tt.name, err, tt.err)
 	}
 }
@@ -74,7 +75,7 @@ func TestEmbedFiles(t *testing.T) {
 			stdout = &f.buf
 		}
 
-		_, err := embed([]string{"docs.md"}, tt.w, tt.d)
+		_, err := embed(context.Background(), []string{"docs.md"}, tt.w, tt.d)
 		if !testutil.EqErr(t, tt.name, err, tt.err) {
 			continue
 		}

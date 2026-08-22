@@ -30,12 +30,12 @@ func process(out io.Writer, in io.Reader, run commandRunner) error {
 	for state != nil {
 		state, err = state(out, s, run)
 		if err != nil {
-			return fmt.Errorf("%d: %v", s.line, err)
+			return fmt.Errorf("%d: %w", s.line, err)
 		}
 	}
 
 	if err := s.Err(); err != nil {
-		return fmt.Errorf("%d: %v", s.line, err)
+		return fmt.Errorf("%d: %w", s.line, err)
 	}
 	return nil
 }

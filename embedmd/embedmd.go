@@ -52,6 +52,7 @@
 package embedmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -63,12 +64,16 @@ import (
 // Process reads markdown from the given io.Reader searching for an embedmd
 // command. When a command is found, it is executed and the output is written
 // into the given io.Writer with the rest of standard markdown.
-func Process(out io.Writer, in io.Reader, opts ...Option) error {
+//
+// The given context is passed to the Fetcher and cancels any content still to
+// be fetched, including HTTP requests in flight.
+func Process(ctx context.Context, out io.Writer, in io.Reader, opts ...Option) error {
 	e := embedder{Fetcher: fetcher{}}
 	for _, opt := range opts {
 		opt.f(&e)
 	}
-	return process(out, in, e.runCommand)
+	run := func(w io.Writer, cmd *command) error { return e.runCommand(ctx, w, cmd) }
+	return process(out, in, run)
 }
 
 // An Option provides a way to adapt the Process function to your needs.
@@ -119,18 +124,21 @@ func checkPath(dir, path string) error {
 	return nil
 }
 
-func (e *embedder) runCommand(w io.Writer, cmd *command) error {
-	if err := checkPath(e.baseDir, cmd.path); err != nil {
-		return fmt.Errorf("could not read %s: %v", cmd.path, err)
+func (e *embedder) runCommand(ctx context.Context, w io.Writer, cmd *command) error {
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	b, err := e.Fetch(e.baseDir, cmd.path)
+	if err := checkPath(e.baseDir, cmd.path); err != nil {
+		return fmt.Errorf("could not read %s: %w", cmd.path, err)
+	}
+	b, err := e.Fetch(ctx, e.baseDir, cmd.path)
 	if err != nil {
-		return fmt.Errorf("could not read %s: %v", cmd.path, err)
+		return fmt.Errorf("could not read %s: %w", cmd.path, err)
 	}
 
 	b, err = extract(b, cmd.start, cmd.end)
 	if err != nil {
-		return fmt.Errorf("could not extract content from %s: %v", cmd.path, err)
+		return fmt.Errorf("could not extract content from %s: %w", cmd.path, err)
 	}
 
 	// Apply transforms in order: exclude → trim → dedent → substitute.

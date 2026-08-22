@@ -15,9 +15,12 @@ package embedmd
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -41,7 +44,7 @@ func TestFetchHTTPTimeout(t *testing.T) {
 	defer func() { httpClient = old }()
 
 	f := fetcher{}
-	_, err := f.Fetch("", srv.URL)
+	_, err := f.Fetch(context.Background(), "", srv.URL)
 	if err == nil {
 		t.Fatal("expected timeout error, got nil")
 	}
@@ -66,7 +69,7 @@ func TestFetchHTTPSizeLimit(t *testing.T) {
 	defer srv.Close()
 
 	f := fetcher{}
-	data, err := f.Fetch("", srv.URL)
+	data, err := f.Fetch(context.Background(), "", srv.URL)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -82,10 +85,45 @@ func TestFetchHTTPNotFound(t *testing.T) {
 	defer srv.Close()
 
 	f := fetcher{}
-	_, err := f.Fetch("", srv.URL)
+	_, err := f.Fetch(context.Background(), "", srv.URL)
 	if err == nil {
 		t.Fatal("expected error for 404, got nil")
 	}
 	want := fmt.Sprintf("status %s", http.StatusText(http.StatusNotFound)+" 404 page not found\n")
 	_ = want // error message format varies; just confirm non-nil
+}
+
+func TestFetchContextCancelled(t *testing.T) {
+	// Server that blocks until the client goes away.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	}))
+	defer srv.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	f := fetcher{}
+	_, err := f.Fetch(ctx, "", srv.URL)
+	if err == nil {
+		t.Fatal("expected error after cancel, got nil")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+}
+
+func TestProcessContextAlreadyCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	in := strings.NewReader("[embedmd]:# (code.go)\n")
+	var out bytes.Buffer
+	err := Process(ctx, &out, in, WithFetcher(fakeFileProvider{"code.go": []byte("package main\n")}))
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
 }

@@ -14,6 +14,7 @@
 package embedmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -29,8 +30,10 @@ import (
 // The first parameter is the base directory that could be used to resolve
 // relative paths. This base directory will be ignored for absolute paths,
 // such as URLs.
+// Implementations should stop their work and return an error when the given
+// context is done.
 type Fetcher interface {
-	Fetch(dir, path string) ([]byte, error)
+	Fetch(ctx context.Context, dir, path string) ([]byte, error)
 }
 
 // httpClient is used for all HTTP fetches. It has a timeout to prevent
@@ -39,12 +42,16 @@ var httpClient = &http.Client{Timeout: 10 * time.Second}
 
 type fetcher struct{}
 
-func (fetcher) Fetch(dir, path string) ([]byte, error) {
+func (fetcher) Fetch(ctx context.Context, dir, path string) ([]byte, error) {
 	if !strings.HasPrefix(path, "http://") && !strings.HasPrefix(path, "https://") {
 		return os.ReadFile(filepath.Join(dir, filepath.FromSlash(path)))
 	}
 
-	res, err := httpClient.Get(path)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	res, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
