@@ -196,6 +196,27 @@ func TestParseCommand(t *testing.T) {
 			},
 		},
 		{
+			name: "substitution with an escaped slash in the text to replace",
+			in:   `(code.go s/a\/b/c/)`,
+			cmd: command{
+				path: "code.go", lang: "go",
+				substitutions: []substitution{{old: "a/b", new: "c"}},
+			},
+		},
+		{
+			name: "substitution with an escaped slash in the replacement",
+			in:   `(code.go s/a/b\/c/)`,
+			cmd: command{
+				path: "code.go", lang: "go",
+				substitutions: []substitution{{old: "a", new: "b/c"}},
+			},
+		},
+		{
+			name: "substitution with nothing to replace",
+			in:   "(code.go s//X/)",
+			err:  `substitution "s//X/" has nothing to replace`,
+		},
+		{
 			name: "multiple substitutions",
 			in:   "(code.go s/ELLIPSIS/.../ s/_ = ELLIPSIS/.../)",
 			cmd: command{

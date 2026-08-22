@@ -137,12 +137,27 @@ func parseCommand(s string) (*command, error) {
 func parseSubstitution(s string) (substitution, error) {
 	// s is already validated as a complete s/old/new/ token by fields().
 	inner := s[2 : len(s)-1] // strip "s/" and trailing "/"
-	before, after, ok := strings.Cut(inner, "/")
-	if !ok {
+
+	// fields() finds the end of a token with nextSlash, which walks past an
+	// escaped slash. Splitting here has to do the same, or s/a\/b/c/ splits
+	// in the wrong place.
+	sep := nextSlash(inner)
+	if sep < 0 {
 		return substitution{}, fmt.Errorf("invalid substitution %q", s)
 	}
-	return substitution{old: before, new: after}, nil
+
+	old := unescapeSlashes(inner[:sep])
+	if old == "" {
+		// bytes.ReplaceAll with an empty pattern inserts the replacement
+		// between every rune of the content.
+		return substitution{}, fmt.Errorf("substitution %q has nothing to replace", s)
+	}
+	return substitution{old: old, new: unescapeSlashes(inner[sep+1:])}, nil
 }
+
+// unescapeSlashes turns \/ into /. The escape exists so that fields() can
+// find the end of a token; the text itself is taken as it reads.
+func unescapeSlashes(s string) string { return strings.ReplaceAll(s, `\/`, "/") }
 
 // isRegexpOrOption reports whether arg looks like a regexp (/.../, !/.../, $)
 // or an option (dedent, trim, s/.../) rather than a language identifier.

@@ -136,6 +136,12 @@ Multiple substitutions can be chained:
 [embedmd]:# (example.go go /func/ /}/ s/ELLIPSIS/.../ s/_ = ELLIPSIS/.../)
 ```
 
+Write a slash inside `old` or `new` as `\/`:
+
+```Markdown
+[embedmd]:# (example.go go s/http:\/\/example.com/https:\/\/example.org/)
+```
+
 ### Combining options
 
 Options can be combined. They are applied in this order: line exclusion, trailing
