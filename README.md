@@ -1,7 +1,13 @@
-[![Build Status](https://travis-ci.org/campoy/embedmd.svg)](https://travis-ci.org/campoy/embedmd) [![Go Report Card](https://goreportcard.com/badge/github.com/campoy/embedmd)](https://goreportcard.com/report/github.com/campoy/embedmd)
-
+[![Build and Test](https://github.com/veggiemonk/embedmd/actions/workflows/ci.yaml/badge.svg)](https://github.com/veggiemonk/embedmd/actions/workflows/ci.yaml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/veggiemonk/embedmd.svg)](https://pkg.go.dev/github.com/veggiemonk/embedmd)
+[![Go Report Card](https://goreportcard.com/badge/github.com/veggiemonk/embedmd)](https://goreportcard.com/report/github.com/veggiemonk/embedmd)
 
 # embedmd
+
+> **This is a maintained fork of [campoy/embedmd](https://github.com/campoy/embedmd).**
+> The original project no longer takes changes, so this fork continues the work.
+> It contains security fixes and features that upstream does not have.
+> See [MIGRATING.md](MIGRATING.md) if you come from the original tool.
 
 Are you tired of copy pasting your code into your `README.md` file, just to
 forget about it later on and have unsynced copies? Or even worse, code
@@ -15,8 +21,8 @@ syntax for comments. This means they are invisible when Markdown is
 rendered, so they can be kept in the file as pointers to the origin of
 the embedded text.
 
-The command receives a list of Markdown files. If no list is given, the command
-reads from the standard input.
+The command receives a list of Markdown files. You must give at least one file.
+The command does not read from the standard input.
 
 The format of an `embedmd` command is:
 
@@ -147,14 +153,17 @@ blank line trimming, dedentation, then text substitution.
 `go install`:
 
 ```
-go install github.com/campoy/embedmd@latest
+go install github.com/veggiemonk/embedmd@latest
 ```
 
 This will download the code, compile it, and leave an `embedmd` binary
 in `$GOPATH/bin`.
 
-Eventually, and if there's enough interest, I will provide binaries for
-every OS and architecture out there ... _eventually_.
+The binary keeps the name `embedmd`. If you installed the original tool, the
+new binary replaces it in `$GOPATH/bin`.
+
+Pre-built binaries for Linux, macOS, and Windows are attached to each
+[release](https://github.com/veggiemonk/embedmd/releases).
 
 ## Usage:
 
@@ -217,7 +226,23 @@ and add the corresponding code snippets, as shown in
 between the contents of `docs.md` and the output of
 `embedmd docs.md`.
 
-### Disclaimer
+## Use as a library
 
-This is not an official Google product (experimental or otherwise), it is just
-code that happens to be owned by Google.
+The `embedmd` package exposes `Process`. It takes a context, so you can cancel
+a run and stop any HTTP fetch in flight.
+
+```go
+err := embedmd.Process(ctx, out, in, embedmd.WithBaseDir(dir))
+```
+
+See the [package documentation](https://pkg.go.dev/github.com/veggiemonk/embedmd/embedmd).
+
+## License and origin
+
+This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE).
+
+The original code was written at Google by Francesc Campoy and others. See
+[NOTICE](NOTICE) for the attribution and for the list of changes.
+
+This is not an official Google product, and it is not related to the original
+`campoy/embedmd` project.

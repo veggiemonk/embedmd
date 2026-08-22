@@ -1,4 +1,6 @@
 .vscode/
+.claude/
 *.test
 embed
+dist/
 .DS_Store
