@@ -71,7 +71,9 @@ import (
 // The given context is passed to the Fetcher and cancels any content still to
 // be fetched, including HTTP requests in flight.
 func Process(ctx context.Context, out io.Writer, in io.Reader, opts ...Option) error {
-	e := embedder{Fetcher: fetcher{}}
+	// One client for the whole run, so several URL directives share the
+	// connection pool.
+	e := embedder{Fetcher: fetcher{client: &http.Client{Timeout: httpTimeout}}}
 	for _, opt := range opts {
 		opt.f(&e)
 	}
