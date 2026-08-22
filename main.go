@@ -109,46 +109,24 @@ func embed(ctx context.Context, paths []string, rewrite, doDiff bool) (foundDiff
 	return foundDiff, nil
 }
 
-type file interface {
-	io.ReadCloser
-	io.WriterAt
-	Truncate(int64) error
-}
-
-// replaced by testing functions.
-var openFile = func(name string) (file, error) {
-	return os.OpenFile(name, os.O_RDWR, 0666)
-}
-
 func processFile(ctx context.Context, path string, rewrite, doDiff bool) (foundDiff bool, err error) {
 	if filepath.Ext(path) != ".md" {
 		return false, fmt.Errorf("not a markdown file")
 	}
 
-	f, err := openFile(path)
+	original, err := os.ReadFile(path)
 	if err != nil {
 		return false, err
 	}
-	// Report a failed close, but do not hide an earlier error.
-	defer func() {
-		if cerr := f.Close(); cerr != nil && err == nil {
-			err = cerr
-		}
-	}()
-
-	var original bytes.Buffer
-	var r io.Reader = f
-	if doDiff {
-		r = io.TeeReader(f, &original)
-	}
 
 	buf := new(bytes.Buffer)
-	if err := embedmd.Process(ctx, buf, r, embedmd.WithBaseDir(filepath.Dir(path))); err != nil {
+	err = embedmd.Process(ctx, buf, bytes.NewReader(original), embedmd.WithBaseDir(filepath.Dir(path)))
+	if err != nil {
 		return false, err
 	}
 
 	if doDiff {
-		data, err := diff(original.String(), buf.String())
+		data, err := diff(string(original), buf.String())
 		if err != nil || len(data) == 0 {
 			return false, err
 		}
@@ -157,15 +135,55 @@ func processFile(ctx context.Context, path string, rewrite, doDiff bool) (foundD
 	}
 
 	if rewrite {
-		n, err := f.WriteAt(buf.Bytes(), 0)
-		if err != nil {
-			return false, fmt.Errorf("could not write: %v", err)
+		if bytes.Equal(original, buf.Bytes()) {
+			return false, nil // nothing changed, so leave the file alone.
 		}
-		return false, f.Truncate(int64(n))
+		return false, replaceFile(path, buf.Bytes())
 	}
 
 	_, err = io.Copy(stdout, buf)
 	return false, err
+}
+
+// replaceFile writes data over path in one step. It writes a temporary file
+// in the same directory, flushes it, and renames it over path, so an
+// interrupted run leaves either the old file or the new one. Writing in place
+// leaves a mixture of the two.
+func replaceFile(path string, data []byte) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+
+	dir, name := filepath.Split(path)
+	tmp, err := os.CreateTemp(dir, name+".tmp*")
+	if err != nil {
+		return err
+	}
+	// The remove does nothing once the rename below has succeeded.
+	defer func() { _ = os.Remove(tmp.Name()) }()
+
+	if err := writeAndClose(tmp, data, info.Mode().Perm()); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
+}
+
+// writeAndClose fills f and closes it, whatever happens.
+func writeAndClose(f *os.File, data []byte, mode os.FileMode) (err error) {
+	defer func() {
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+	}()
+	if _, err := f.Write(data); err != nil {
+		return err
+	}
+	// os.CreateTemp makes a file that only its owner can read.
+	if err := f.Chmod(mode); err != nil {
+		return err
+	}
+	return f.Sync()
 }
 
 func diff(a, b string) (string, error) {

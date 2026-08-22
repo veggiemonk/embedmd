@@ -21,104 +21,201 @@ package main
 import (
 	"bytes"
 	"context"
-	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
-
-	"github.com/veggiemonk/embedmd/internal/testutil"
 )
 
 func TestEmbedNoPaths(t *testing.T) {
-	tc := []struct {
+	tests := []struct {
 		name string
 		err  string
 		d, w bool
 	}{
-		{name: "no files provided",
-			err: "error: no markdown files provided",
+		{
+			name: "no files provided",
+			err:  "error: no markdown files provided",
 		},
-		{name: "can't diff and rewrite",
-			w: true, d: true,
+		{
+			name: "can't diff and rewrite",
+			w:    true, d: true,
 			err: "error: cannot use -w and -d simultaneously",
 		},
 	}
 
-	for _, tt := range tc {
-		_, err := embed(context.Background(), nil, tt.w, tt.d)
-		testutil.EqErr(t, tt.name, err, tt.err)
-	}
-}
-
-func TestEmbedFiles(t *testing.T) {
-	// The markdown file is a fake, but the file it embeds is a real one, so
-	// the fetcher does real work.
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "hello.go"), []byte("hi\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(dir, "docs.md")
-
-	tc := []struct {
-		name string
-		in   string
-		out  string
-		err  string
-		d, w bool
-	}{
-		{name: "rewriting a file",
-			in:  "[embedmd]:# (hello.go)\n",
-			w:   true,
-			out: "[embedmd]:# (hello.go)\n```go\nhi\n```\n",
-		},
-		{name: "rewriting adds no line terminator of its own",
-			in:  "one\ntwo\nthree",
-			w:   true,
-			out: "one\ntwo\nthree",
-		},
-		{name: "rewriting keeps CRLF",
-			in:  "one\r\ntwo\r\n",
-			w:   true,
-			out: "one\r\ntwo\r\n",
-		},
-		{name: "diffing a file",
-			in:  "[embedmd]:# (hello.go)\n",
-			d:   true,
-			out: "@@ -1,2 +1,5 @@\n [embedmd]:# (hello.go)\n+```go\n+hi\n+```\n \n",
-		},
-	}
-
-	defer func(f func(string) (file, error)) { openFile = f }(openFile)
-
-	for _, tt := range tc {
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := newFakeFile(tt.in)
-			openFile = func(string) (file, error) { return f, nil }
-			stdout = os.Stdout
-			if tt.d {
-				stdout = &f.buf
-			}
-
-			_, err := embed(context.Background(), []string{path}, tt.w, tt.d)
-			if !testutil.EqErr(t, tt.name, err, tt.err) {
-				return
-			}
-			if got := f.buf.String(); tt.out != got {
-				t.Errorf("expected output \n%q; got\n%q", tt.out, got)
+			_, err := embed(context.Background(), nil, tt.w, tt.d)
+			if err == nil || err.Error() != tt.err {
+				t.Fatalf("expected error %q; got %v", tt.err, err)
 			}
 		})
 	}
 }
 
-type fakeFile struct {
-	io.ReadCloser
-	buf bytes.Buffer
+// newDoc writes docs.md with the given content in a new directory, next to a
+// hello.go that a directive can embed, and returns the path of docs.md.
+func newDoc(t *testing.T, content string) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "hello.go"), []byte("hi\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "docs.md")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
-func (f *fakeFile) WriteAt(b []byte, offset int64) (int, error) { return f.buf.Write(b) }
-func (f *fakeFile) Truncate(int64) error                        { return nil }
+func TestEmbedRewrite(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		out  string
+	}{
+		{
+			name: "a directive gets its block",
+			in:   "[embedmd]:# (hello.go)\n",
+			out:  "[embedmd]:# (hello.go)\n```go\nhi\n```\n",
+		},
+		{
+			name: "an up to date block stays as it is",
+			in:   "[embedmd]:# (hello.go)\n```go\nhi\n```\n",
+			out:  "[embedmd]:# (hello.go)\n```go\nhi\n```\n",
+		},
+		{
+			name: "no line terminator is added",
+			in:   "one\ntwo\nthree",
+			out:  "one\ntwo\nthree",
+		},
+		{
+			name: "CRLF stays CRLF",
+			in:   "one\r\ntwo\r\n",
+			out:  "one\r\ntwo\r\n",
+		},
+	}
 
-func newFakeFile(s string) *fakeFile {
-	return &fakeFile{ReadCloser: io.NopCloser(strings.NewReader(s))}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := newDoc(t, tt.in)
+			if _, err := embed(context.Background(), []string{path}, true, false); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			got, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(got) != tt.out {
+				t.Errorf("expected file\n%q; got\n%q", tt.out, got)
+			}
+		})
+	}
+}
+
+func TestEmbedRewriteKeepsFileMode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file modes work differently on Windows")
+	}
+	path := newDoc(t, "[embedmd]:# (hello.go)\n")
+	if _, err := embed(context.Background(), []string{path}, true, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o644 {
+		t.Errorf("expected mode 0644; got %04o", got)
+	}
+}
+
+func TestEmbedRewriteLeavesNoTemporaryFile(t *testing.T) {
+	path := newDoc(t, "[embedmd]:# (hello.go)\n")
+	if _, err := embed(context.Background(), []string{path}, true, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	entries, err := os.ReadDir(filepath.Dir(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	if len(names) != 2 {
+		t.Errorf("expected docs.md and hello.go only; got %v", names)
+	}
+}
+
+func TestEmbedDiff(t *testing.T) {
+	tests := []struct {
+		name      string
+		in        string
+		out       string
+		foundDiff bool
+	}{
+		{
+			name:      "a missing block shows as added",
+			in:        "[embedmd]:# (hello.go)\n",
+			out:       "@@ -1,2 +1,5 @@\n [embedmd]:# (hello.go)\n+```go\n+hi\n+```\n \n",
+			foundDiff: true,
+		},
+		{
+			name: "an up to date file shows nothing",
+			in:   "[embedmd]:# (hello.go)\n```go\nhi\n```\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := newDoc(t, tt.in)
+			var out bytes.Buffer
+			old := stdout
+			stdout = &out
+			t.Cleanup(func() { stdout = old })
+
+			foundDiff, err := embed(context.Background(), []string{path}, false, true)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if foundDiff != tt.foundDiff {
+				t.Errorf("expected foundDiff %v; got %v", tt.foundDiff, foundDiff)
+			}
+			if got := out.String(); got != tt.out {
+				t.Errorf("expected diff\n%q; got\n%q", tt.out, got)
+			}
+		})
+	}
+
+	// The file must not change under -d.
+	path := newDoc(t, "[embedmd]:# (hello.go)\n")
+	var out bytes.Buffer
+	old := stdout
+	stdout = &out
+	t.Cleanup(func() { stdout = old })
+	if _, err := embed(context.Background(), []string{path}, false, true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "[embedmd]:# (hello.go)\n" {
+		t.Errorf("the file changed under -d: %q", got)
+	}
+}
+
+func TestEmbedNotMarkdown(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hello.go")
+	if err := os.WriteFile(path, []byte("hi\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := embed(context.Background(), []string{path}, false, false)
+	if err == nil || !strings.Contains(err.Error(), "not a markdown file") {
+		t.Fatalf("expected a markdown error; got %v", err)
+	}
 }
