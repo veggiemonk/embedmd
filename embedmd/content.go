@@ -50,11 +50,22 @@ type Fetcher interface {
 // maxResponseSize is the largest response body an HTTP fetch accepts.
 const maxResponseSize = 10 << 20 // 10 MiB
 
-// httpClient is used for all HTTP fetches. It has a timeout to prevent
-// the process from hanging on slow or unresponsive servers.
-var httpClient = &http.Client{Timeout: 10 * time.Second}
+// httpTimeout stops the process from hanging on a slow or unresponsive
+// server. It applies to the whole request, headers and body.
+const httpTimeout = 10 * time.Second
 
-type fetcher struct{}
+// fetcher is the default Fetcher. A nil client means the default one.
+type fetcher struct{ client *http.Client }
+
+// httpClient returns the client to use. Building one on demand keeps the
+// package free of shared mutable state, and a fetch costs far more than the
+// allocation.
+func (f fetcher) httpClient() *http.Client {
+	if f.client != nil {
+		return f.client
+	}
+	return &http.Client{Timeout: httpTimeout}
+}
 
 // readLocalFile reads path, resolved against the base directory dir.
 //
@@ -83,7 +94,7 @@ func readLocalFile(dir, path string) ([]byte, error) {
 	return io.ReadAll(f)
 }
 
-func (fetcher) Fetch(ctx context.Context, dir, path string) ([]byte, error) {
+func (f fetcher) Fetch(ctx context.Context, dir, path string) ([]byte, error) {
 	if !strings.HasPrefix(path, "http://") && !strings.HasPrefix(path, "https://") {
 		return readLocalFile(dir, path)
 	}
@@ -92,7 +103,7 @@ func (fetcher) Fetch(ctx context.Context, dir, path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	res, err := httpClient.Do(req)
+	res, err := f.httpClient().Do(req)
 	if err != nil {
 		return nil, err
 	}

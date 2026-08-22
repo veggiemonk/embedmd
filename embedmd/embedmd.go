@@ -60,6 +60,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"regexp"
 )
 
@@ -96,6 +97,15 @@ func WithBaseDir(path string) Option {
 // to be fetched.
 func WithFetcher(c Fetcher) Option {
 	return Option{func(e *embedder) { e.Fetcher = c }}
+}
+
+// WithHTTPClient sets the http.Client that the default Fetcher uses for URLs.
+// Supply one to change the timeout, the transport, or the redirect policy.
+//
+// It replaces the Fetcher, so a later WithFetcher overrides it, and it
+// overrides an earlier WithFetcher.
+func WithHTTPClient(c *http.Client) Option {
+	return Option{func(e *embedder) { e.Fetcher = fetcher{client: c} }}
 }
 
 type embedder struct {

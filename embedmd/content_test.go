@@ -45,12 +45,7 @@ func TestFetchHTTPTimeout(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// Replace the package-level client with a very short timeout.
-	old := httpClient
-	httpClient = &http.Client{Timeout: 100 * time.Millisecond}
-	defer func() { httpClient = old }()
-
-	f := fetcher{}
+	f := fetcher{client: &http.Client{Timeout: 100 * time.Millisecond}}
 	_, err := f.Fetch(context.Background(), "", srv.URL)
 	if err == nil {
 		t.Fatal("expected timeout error, got nil")
