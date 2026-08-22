@@ -7,8 +7,20 @@ import (
 	"testing"
 )
 
+// TestIntegration builds the binary from the current source and runs it over
+// sample/docs.md. The sample embeds one file over HTTP, so the test needs
+// network access and is skipped with -short.
 func TestIntegration(t *testing.T) {
-	cmd := exec.Command("embedmd", "docs.md")
+	if testing.Short() {
+		t.Skip("integration test needs network access")
+	}
+
+	bin := filepath.Join(t.TempDir(), "embedmd")
+	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
+		t.Fatalf("could not build embedmd (%v): %s", err, out)
+	}
+
+	cmd := exec.Command(bin, "docs.md")
 	cmd.Dir = "sample"
 	got, err := cmd.CombinedOutput()
 	if err != nil {
