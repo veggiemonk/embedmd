@@ -62,7 +62,7 @@ func TestExcludeLines(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := excludeLines([]byte(tt.in), tt.excludeStart, tt.excludeEnd)
 			if string(got) != tt.out {
-				t.Errorf("case [%s]: expected %q; got %q", tt.name, tt.out, string(got))
+				t.Errorf("expected %q; got %q", tt.out, string(got))
 			}
 		})
 	}
@@ -111,7 +111,7 @@ func TestTrimTrailingBlankLines(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := trimTrailingBlankLines([]byte(tt.in))
 			if string(got) != tt.out {
-				t.Errorf("case [%s]: expected %q; got %q", tt.name, tt.out, string(got))
+				t.Errorf("expected %q; got %q", tt.out, string(got))
 			}
 		})
 	}
@@ -164,7 +164,7 @@ func TestDedentBytes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := dedentBytes([]byte(tt.in))
 			if string(got) != tt.out {
-				t.Errorf("case [%s]: expected %q; got %q", tt.name, tt.out, string(got))
+				t.Errorf("expected %q; got %q", tt.out, string(got))
 			}
 		})
 	}
@@ -204,7 +204,7 @@ func TestApplySubstitutions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := applySubstitutions([]byte(tt.in), tt.subs)
 			if string(got) != tt.out {
-				t.Errorf("case [%s]: expected %q; got %q", tt.name, tt.out, string(got))
+				t.Errorf("expected %q; got %q", tt.out, string(got))
 			}
 		})
 	}

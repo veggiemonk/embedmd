@@ -27,8 +27,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/veggiemonk/embedmd/internal/testutil"
 )
 
 const content = `
@@ -107,11 +105,17 @@ func TestExtract(t *testing.T) {
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
 			b, err := extract([]byte(content), tt.start, tt.end)
-			if !testutil.EqErr(t, tt.name, err, tt.err) {
+			if tt.err != "" {
+				if err == nil || err.Error() != tt.err {
+					t.Fatalf("expected error %q; got %v", tt.err, err)
+				}
 				return
 			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 			if string(b) != tt.out {
-				t.Errorf("case [%s]: expected extracting %q; got %q", tt.name, tt.out, b)
+				t.Errorf("expected extracting %q; got %q", tt.out, b)
 			}
 		})
 	}
@@ -217,11 +221,17 @@ func TestExtractFromFile(t *testing.T) {
 
 			w := new(bytes.Buffer)
 			err := e.runCommand(context.Background(), w, &tt.cmd, "\n")
-			if !testutil.EqErr(t, tt.name, err, tt.err) {
+			if tt.err != "" {
+				if err == nil || err.Error() != tt.err {
+					t.Fatalf("expected error %q; got %v", tt.err, err)
+				}
 				return
 			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 			if w.String() != tt.out {
-				t.Errorf("case [%s]: expected output\n%q\n; got \n%q\n", tt.name, tt.out, w.String())
+				t.Errorf("expected output\n%q\n; got \n%q\n", tt.out, w.String())
 			}
 		})
 	}
@@ -372,11 +382,17 @@ func TestProcess(t *testing.T) {
 				opts = append(opts, WithBaseDir(tt.dir))
 			}
 			err := Process(context.Background(), &out, strings.NewReader(tt.in), opts...)
-			if !testutil.EqErr(t, tt.name, err, tt.err) {
+			if tt.err != "" {
+				if err == nil || err.Error() != tt.err {
+					t.Fatalf("expected error %q; got %v", tt.err, err)
+				}
 				return
 			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 			if tt.out != out.String() {
-				t.Errorf("case [%s]: expected output:\n###\n%s\n###; got###\n%s\n###", tt.name, tt.out, out.String())
+				t.Errorf("expected output:\n###\n%s\n###; got###\n%s\n###", tt.out, out.String())
 			}
 		})
 	}

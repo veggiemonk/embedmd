@@ -20,8 +20,6 @@ package embedmd
 
 import (
 	"testing"
-
-	"github.com/veggiemonk/embedmd/internal/testutil"
 )
 
 func TestFields(t *testing.T) {
@@ -71,15 +69,21 @@ func TestFields(t *testing.T) {
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := fields(tt.in)
-			if !testutil.EqErr(t, tt.name, err, tt.err) {
+			if tt.err != "" {
+				if err == nil || err.Error() != tt.err {
+					t.Fatalf("expected error %q; got %v", tt.err, err)
+				}
 				return
 			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 			if len(got) != len(tt.out) {
-				t.Fatalf("case [%s]: expected %d fields %v; got %d fields %v", tt.name, len(tt.out), tt.out, len(got), got)
+				t.Fatalf("expected %d fields %v; got %d fields %v", len(tt.out), tt.out, len(got), got)
 			}
 			for i := range got {
 				if got[i] != tt.out[i] {
-					t.Errorf("case [%s]: field %d: expected %q; got %q", tt.name, i, tt.out[i], got[i])
+					t.Errorf("field %d: expected %q; got %q", i, tt.out[i], got[i])
 				}
 			}
 		})
@@ -262,41 +266,47 @@ func TestParseCommand(t *testing.T) {
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd, err := parseCommand(tt.in)
-			if !testutil.EqErr(t, tt.name, err, tt.err) {
+			if tt.err != "" {
+				if err == nil || err.Error() != tt.err {
+					t.Fatalf("expected error %q; got %v", tt.err, err)
+				}
 				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
 			}
 
 			want, got := tt.cmd, *cmd
 			if want.path != got.path {
-				t.Errorf("case [%s]: expected file %q; got %q", tt.name, want.path, got.path)
+				t.Errorf("expected file %q; got %q", want.path, got.path)
 			}
 			if want.lang != got.lang {
-				t.Errorf("case [%s]: expected language %q; got %q", tt.name, want.lang, got.lang)
+				t.Errorf("expected language %q; got %q", want.lang, got.lang)
 			}
 			if want.start != got.start {
-				t.Errorf("case [%s]: expected start %q; got %q", tt.name, want.start, got.start)
+				t.Errorf("expected start %q; got %q", want.start, got.start)
 			}
 			if want.end != got.end {
-				t.Errorf("case [%s]: expected end %q; got %q", tt.name, want.end, got.end)
+				t.Errorf("expected end %q; got %q", want.end, got.end)
 			}
 			if want.excludeStart != got.excludeStart {
-				t.Errorf("case [%s]: expected excludeStart %v; got %v", tt.name, want.excludeStart, got.excludeStart)
+				t.Errorf("expected excludeStart %v; got %v", want.excludeStart, got.excludeStart)
 			}
 			if want.excludeEnd != got.excludeEnd {
-				t.Errorf("case [%s]: expected excludeEnd %v; got %v", tt.name, want.excludeEnd, got.excludeEnd)
+				t.Errorf("expected excludeEnd %v; got %v", want.excludeEnd, got.excludeEnd)
 			}
 			if want.dedent != got.dedent {
-				t.Errorf("case [%s]: expected dedent %v; got %v", tt.name, want.dedent, got.dedent)
+				t.Errorf("expected dedent %v; got %v", want.dedent, got.dedent)
 			}
 			if want.trim != got.trim {
-				t.Errorf("case [%s]: expected trim %v; got %v", tt.name, want.trim, got.trim)
+				t.Errorf("expected trim %v; got %v", want.trim, got.trim)
 			}
 			if len(want.substitutions) != len(got.substitutions) {
-				t.Errorf("case [%s]: expected %d substitutions; got %d", tt.name, len(want.substitutions), len(got.substitutions))
+				t.Errorf("expected %d substitutions; got %d", len(want.substitutions), len(got.substitutions))
 			} else {
 				for i := range want.substitutions {
 					if want.substitutions[i] != got.substitutions[i] {
-						t.Errorf("case [%s]: substitution %d: expected %v; got %v", tt.name, i, want.substitutions[i], got.substitutions[i])
+						t.Errorf("substitution %d: expected %v; got %v", i, want.substitutions[i], got.substitutions[i])
 					}
 				}
 			}

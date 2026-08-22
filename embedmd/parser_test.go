@@ -25,8 +25,6 @@ import (
 	"io"
 	"strings"
 	"testing"
-
-	"github.com/veggiemonk/embedmd/internal/testutil"
 )
 
 func TestParser(t *testing.T) {
@@ -102,11 +100,17 @@ func TestParser(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var out bytes.Buffer
 			err := process(&out, strings.NewReader(tt.in), tt.run)
-			if !testutil.EqErr(t, tt.name, err, tt.err) {
+			if tt.err != "" {
+				if err == nil || err.Error() != tt.err {
+					t.Fatalf("expected error %q; got %v", tt.err, err)
+				}
 				return
 			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 			if got := out.String(); got != tt.out {
-				t.Errorf("case [%s] expected %q; got %q", tt.name, tt.out, got)
+				t.Errorf("expected %q; got %q", tt.out, got)
 			}
 		})
 	}
