@@ -47,6 +47,9 @@ type Fetcher interface {
 	Fetch(ctx context.Context, dir, path string) ([]byte, error)
 }
 
+// maxResponseSize is the largest response body an HTTP fetch accepts.
+const maxResponseSize = 10 << 20 // 10 MiB
+
 // httpClient is used for all HTTP fetches. It has a timeout to prevent
 // the process from hanging on slow or unresponsive servers.
 var httpClient = &http.Client{Timeout: 10 * time.Second}
@@ -97,6 +100,15 @@ func (fetcher) Fetch(ctx context.Context, dir, path string) ([]byte, error) {
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("status %s", res.Status)
 	}
-	const maxResponseSize = 10 << 20 // 10 MiB
-	return io.ReadAll(io.LimitReader(res.Body, maxResponseSize))
+	// Read one byte past the limit. io.LimitReader alone stops at the limit
+	// and reports no error, so an oversize response would enter the document
+	// truncated, and look complete.
+	b, err := io.ReadAll(io.LimitReader(res.Body, maxResponseSize+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(b) > maxResponseSize {
+		return nil, fmt.Errorf("response is larger than the limit of %d bytes", maxResponseSize)
+	}
+	return b, nil
 }

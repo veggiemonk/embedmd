@@ -58,14 +58,11 @@ func TestFetchHTTPTimeout(t *testing.T) {
 }
 
 func TestFetchHTTPSizeLimit(t *testing.T) {
-	const limit = 10 << 20 // 10 MiB — must match maxResponseSize in content.go
-	// Server that returns more than the limit.
+	// A server that returns one byte more than the limit.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		// Write limit+1 bytes worth of data.
 		chunk := bytes.Repeat([]byte("x"), 4096)
-		total := 0
-		for total < limit+1 {
+		for total := 0; total < maxResponseSize+1; {
 			n, err := w.Write(chunk)
 			if err != nil {
 				return
@@ -76,12 +73,15 @@ func TestFetchHTTPSizeLimit(t *testing.T) {
 	defer srv.Close()
 
 	f := fetcher{}
-	data, err := f.Fetch(context.Background(), "", srv.URL)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	b, err := f.Fetch(context.Background(), "", srv.URL)
+	if err == nil {
+		t.Fatalf("expected an error; got %d bytes", len(b))
 	}
-	if len(data) != limit {
-		t.Errorf("expected %d bytes, got %d", limit, len(data))
+	if !strings.Contains(err.Error(), "larger than the limit") {
+		t.Fatalf("expected a size limit error; got %v", err)
+	}
+	if b != nil {
+		t.Errorf("expected no content with the error; got %d bytes", len(b))
 	}
 }
 
