@@ -55,7 +55,6 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/pmezard/go-difflib/difflib"
 	"github.com/veggiemonk/embedmd/embedmd"
 )
 
@@ -157,9 +156,9 @@ func (a app) processFile(ctx context.Context, path string, rewrite, doDiff bool)
 	}
 
 	if doDiff {
-		data, err := diff(string(original), buf.String())
-		if err != nil || len(data) == 0 {
-			return false, err
+		data := diff(string(original), buf.String())
+		if data == "" {
+			return false, nil
 		}
 		if _, err := io.WriteString(a.stdout, data); err != nil {
 			return true, err
@@ -217,12 +216,4 @@ func writeAndClose(f *os.File, data []byte, mode os.FileMode) (err error) {
 		return err
 	}
 	return f.Sync()
-}
-
-func diff(a, b string) (string, error) {
-	return difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
-		A:       difflib.SplitLines(a),
-		B:       difflib.SplitLines(b),
-		Context: 3,
-	})
 }

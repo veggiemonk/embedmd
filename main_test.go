@@ -165,7 +165,7 @@ func TestEmbedDiff(t *testing.T) {
 		{
 			name:      "a missing block shows as added",
 			in:        "[embedmd]:# (hello.go)\n",
-			out:       "@@ -1,2 +1,5 @@\n [embedmd]:# (hello.go)\n+```go\n+hi\n+```\n \n",
+			out:       "@@ -1 +1,4 @@\n [embedmd]:# (hello.go)\n+```go\n+hi\n+```\n",
 			foundDiff: true,
 		},
 		{
