@@ -104,7 +104,7 @@ func TestExtract(t *testing.T) {
 
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
-			b, err := extract([]byte(content), tt.start, tt.end)
+			b, _, err := extract([]byte(content), tt.start, tt.end)
 			if tt.err != "" {
 				if err == nil || err.Error() != tt.err {
 					t.Fatalf("expected error %q; got %v", tt.err, err)
@@ -179,6 +179,23 @@ func TestExtractFromFile(t *testing.T) {
 			},
 			files: map[string][]byte{"code.go": []byte("// start\n\tfmt.Println(\"hello\")\n\tx := 1\n// end\n")},
 			out:   "```go\nfmt.Println(\"hello\")\nx := 1\n```\n",
+		},
+		{
+			name: "dedent works when the start line is kept",
+			cmd: command{
+				path: "code.go", lang: "go",
+				start: "/\\/\\/ start/", end: "/\\/\\/ end/", dedent: true,
+			},
+			files: map[string][]byte{"code.go": []byte("func f() {\n\t// start\n\tx := 1\n\t// end\n}\n")},
+			out:   "```go\n// start\nx := 1\n// end\n```\n",
+		},
+		{
+			name: "dedent leaves a whole file alone when a line sits at the margin",
+			cmd: command{
+				path: "code.go", lang: "go", dedent: true,
+			},
+			files: map[string][]byte{"code.go": []byte("package main\n\n\tx := 1\n")},
+			out:   "```go\npackage main\n\n\tx := 1\n```\n",
 		},
 		{
 			name: "trim removes trailing blank lines",

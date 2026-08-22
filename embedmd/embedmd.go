@@ -124,10 +124,18 @@ func (e *embedder) runCommand(ctx context.Context, w io.Writer, cmd *command, eo
 		return fmt.Errorf("could not read %s: %w", cmd.path, err)
 	}
 
-	b, err = extract(b, cmd.start, cmd.end)
+	content, offset, err := extract(b, cmd.start, cmd.end)
 	if err != nil {
 		return fmt.Errorf("could not extract content from %s: %w", cmd.path, err)
 	}
+
+	// A start regexp can match in the middle of a line, and then the first
+	// line of the content carries none of its own indentation. dedent has to
+	// leave that line out of the comparison, or it finds no common prefix and
+	// does nothing at all. Excluding the start line removes the problem with
+	// the line.
+	wholeFirstLine := cmd.excludeStart || offset == 0 || b[offset-1] == '\n'
+	b = content
 
 	// Apply transforms in order: exclude → trim → dedent → substitute.
 	b = excludeLines(b, cmd.excludeStart, cmd.excludeEnd)
@@ -135,7 +143,7 @@ func (e *embedder) runCommand(ctx context.Context, w io.Writer, cmd *command, eo
 		b = trimTrailingBlankLines(b)
 	}
 	if cmd.dedent {
-		b = dedentBytes(b)
+		b = dedentBytes(b, wholeFirstLine)
 	}
 	b = applySubstitutions(b, cmd.substitutions)
 
@@ -153,13 +161,15 @@ func (e *embedder) runCommand(ctx context.Context, w io.Writer, cmd *command, eo
 	return err
 }
 
-// extract returns the part of b delimited by the start and end regexps.
+// extract returns the part of b delimited by the start and end regexps, and
+// the offset in b where that part begins.
+//
 // An empty start or end means the boundary is absent: parseCommand never
 // produces an empty one. The end may also be "$", which means "to the end of
 // the content".
-func extract(b []byte, start, end string) ([]byte, error) {
+func extract(b []byte, start, end string) ([]byte, int, error) {
 	if start == "" && end == "" {
-		return b, nil
+		return b, 0, nil
 	}
 
 	match := func(s string) ([]int, error) {
@@ -177,24 +187,26 @@ func extract(b []byte, start, end string) ([]byte, error) {
 		return loc, nil
 	}
 
+	offset := 0
 	if start != "" {
 		loc, err := match(start)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		if end == "" {
-			return b[loc[0]:loc[1]], nil
+			return b[loc[0]:loc[1]], loc[0], nil
 		}
-		b = b[loc[0]:]
+		offset = loc[0]
+		b = b[offset:]
 	}
 
 	if end != "$" {
 		loc, err := match(end)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		b = b[:loc[1]]
 	}
 
-	return b, nil
+	return b, offset, nil
 }

@@ -162,7 +162,7 @@ func TestDedentBytes(t *testing.T) {
 	}
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
-			got := dedentBytes([]byte(tt.in))
+			got := dedentBytes([]byte(tt.in), true)
 			if string(got) != tt.out {
 				t.Errorf("expected %q; got %q", tt.out, string(got))
 			}

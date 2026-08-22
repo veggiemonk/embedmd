@@ -74,7 +74,12 @@ func trimTrailingBlankLines(b []byte) []byte {
 	return bytes.Join(lines, nil)
 }
 
-func dedentBytes(b []byte) []byte {
+// dedentBytes removes the whitespace that every line starts with.
+//
+// wholeFirstLine says whether the first line starts at the beginning of a
+// line of the source. A line that does not carries no indentation of its own,
+// so it is left out of the comparison.
+func dedentBytes(b []byte, wholeFirstLine bool) []byte {
 	if len(b) == 0 {
 		return b
 	}
@@ -83,7 +88,10 @@ func dedentBytes(b []byte) []byte {
 	// Find common whitespace prefix among non-blank lines.
 	var prefix []byte
 	first := true
-	for _, line := range lines {
+	for i, line := range lines {
+		if i == 0 && !wholeFirstLine {
+			continue
+		}
 		content := bytes.TrimRight(line, "\n")
 		if len(bytes.TrimSpace(content)) == 0 {
 			continue // skip blank lines for prefix calculation
