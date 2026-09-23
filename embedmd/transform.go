@@ -21,18 +21,11 @@ import (
 	"slices"
 )
 
-// splitLines splits b into lines, each keeping its trailing \n. An empty b
-// gives no lines, and a b that does not end in \n gives a last line without
-// one.
-func splitLines(b []byte) [][]byte {
-	return slices.Collect(bytes.Lines(b))
-}
-
 func excludeLines(b []byte, exclStart, exclEnd bool) []byte {
 	if len(b) == 0 {
 		return b
 	}
-	lines := splitLines(b)
+	lines := slices.Collect(bytes.Lines(b))
 	if exclStart && len(lines) > 0 {
 		lines = lines[1:]
 	}
@@ -53,7 +46,7 @@ func trimTrailingBlankLines(b []byte) []byte {
 	if len(b) == 0 {
 		return b
 	}
-	lines := splitLines(b)
+	lines := slices.Collect(bytes.Lines(b))
 	// Remove trailing blank/whitespace-only lines.
 	for len(lines) > 0 {
 		last := lines[len(lines)-1]
@@ -83,7 +76,7 @@ func dedentBytes(b []byte, wholeFirstLine bool) []byte {
 	if len(b) == 0 {
 		return b
 	}
-	lines := splitLines(b)
+	lines := slices.Collect(bytes.Lines(b))
 
 	// Find common whitespace prefix among non-blank lines.
 	var prefix []byte

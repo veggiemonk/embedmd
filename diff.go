@@ -40,21 +40,7 @@ func diff(a, b string) string {
 	if a == b {
 		return ""
 	}
-	return unified(editScript(splitLines(a), splitLines(b)))
-}
-
-// splitLines cuts s into lines, each keeping its terminator. A last line
-// without one is kept as it is.
-func splitLines(s string) []string {
-	var lines []string
-	for len(s) > 0 {
-		i := strings.IndexByte(s, '\n')
-		if i < 0 {
-			return append(lines, s)
-		}
-		lines, s = append(lines, s[:i+1]), s[i+1:]
-	}
-	return lines
+	return unified(editScript(slices.Collect(strings.Lines(a)), slices.Collect(strings.Lines(b))))
 }
 
 // An edit is one line of the result: kept (' '), removed ('-'), or added
@@ -78,7 +64,7 @@ func editScript(a, b []string) []edit {
 	for d := 0; d <= maxD; d++ {
 		// Keep the state reached with d-1 edits. Only the diagonals in
 		// [-d, d] can be read back later, so only they are kept.
-		trace = append(trace, append([]int(nil), v[offset-d:offset+d+1]...))
+		trace = append(trace, slices.Clone(v[offset-d:offset+d+1]))
 
 		for k := -d; k <= d; k += 2 {
 			var x int
