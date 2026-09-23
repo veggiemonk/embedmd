@@ -17,6 +17,7 @@
 package main
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -115,7 +116,7 @@ func TestDiffRebuildsBothTexts(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		script := editScript(splitLines(tt.a), splitLines(tt.b))
+		script := editScript(slices.Collect(strings.Lines(tt.a)), slices.Collect(strings.Lines(tt.b)))
 		var gotA, gotB strings.Builder
 		for _, e := range script {
 			switch e.kind {
@@ -143,7 +144,7 @@ func TestDiffTooManyChanges(t *testing.T) {
 	a := strings.Repeat("a\n", maxEditDistance)
 	b := strings.Repeat("b\n", maxEditDistance)
 
-	script := editScript(splitLines(a), splitLines(b))
+	script := editScript(slices.Collect(strings.Lines(a)), slices.Collect(strings.Lines(b)))
 	var removed, added int
 	for _, e := range script {
 		switch e.kind {
