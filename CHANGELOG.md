@@ -6,6 +6,15 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-09-23
+
+### Changed
+
+- The `go` directive reads `go 1.27.0`, the full version. The minimum Go
+  version stays the same.
+- The line splitting and the diff trace use `strings.Lines`, `bytes.Lines` and
+  `slices.Clone` from the standard library. The output does not change.
+
 ## [1.0.0] - 2026-08-22
 
 This is the first release of the fork. The project moved from
@@ -98,5 +107,6 @@ The fork also carries these fixes, which came before the fork point:
 For the history of the original project, see
 https://github.com/campoy/embedmd.
 
-[Unreleased]: https://github.com/veggiemonk/embedmd/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/veggiemonk/embedmd/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/veggiemonk/embedmd/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/veggiemonk/embedmd/releases/tag/v1.0.0
